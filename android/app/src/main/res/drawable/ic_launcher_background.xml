@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Blue gradient sampled from design/icon-source.jpg. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:angle="270"
+        android:startColor="#2A7FC0"
+        android:centerColor="#1F3A72"
+        android:endColor="#19193B" />
+</shape>
