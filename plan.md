@@ -150,6 +150,21 @@ Android is done.
 
 ---
 
+### 2.5 Why not a full replacement SMS app?
+
+We considered making Message Killer the permanent default messaging app,
+which would let it file political texts away the moment they arrive.
+**Rejected for now because a replacement app can't use RCS.** Android has
+no public RCS API for third-party apps, so chats with other Android users
+and with iPhones (iOS 18+) would drop back to SMS/MMS. That means losing
+typing indicators, read receipts, high-quality media, end-to-end
+encryption, reactions, and proper group chats. Also, a dependable MMS and
+group-text implementation is months of work if built from scratch.
+
+If this changes, the fastest path is forking Fossify Messages (Kotlin,
+GPL-3.0) and adding our classifier, rather than writing a Flutter SMS
+client from scratch.
+
 ## 3. Implementation order
 
 Each phase ends with something that runs on a real Android phone.
@@ -194,56 +209,74 @@ Each phase ends with something that runs on a real Android phone.
    sensitivity threshold. Optionally read contacts to auto-allow known
    senders.
 
-### Phase 3 — Archive
-9. drift schema with tables `archived_messages`, `rules`, `scan_runs`, and
-   `allow_list`.
-10. "Archive" action that copies confirmed messages into the DB and checks
+### Phase 3 — Live mode (silence new political texts)
+Moved up from "optional" because new political texts keep arriving, and
+blocking numbers doesn't stop them since senders keep switching numbers.
+Doesn't need the default-SMS-app role.
+9. `NotificationListenerService` (Kotlin) that sees new Google Messages /
+   Samsung Messages notifications, runs the classifier, and **cancels the
+   notification** for flagged messages, so your phone doesn't buzz.
+   Notification-access onboarding (another "restricted settings" step for
+   sideloaded apps).
+10. Pass the classifier rules to the native side (JSON), or run the Dart
+    classifier in a background isolate / headless engine. Has to keep up
+    with each incoming text without noticeable delay.
+11. "Silenced today" list in the app: message, reasons, "this wasn't
+    political" (un-flag, add to allow-list), with a running count. Silenced
+    messages are queued for the next cleanup.
+12. Keep it running reliably: battery-optimization exemption prompt, and
+    rebind after reboot or app update.
+
+### Phase 4 — Archive
+13. drift schema with tables `archived_messages`, `rules`, `scan_runs`, and
+    `allow_list`.
+14. "Archive" action that copies confirmed messages into the DB and checks
     that each write succeeded.
-11. Archive browser with search, filtering by sender and date, and JSON/CSV
+15. Archive browser with search, filtering by sender and date, and JSON/CSV
     export.
 
-### Phase 4 — Delete (default SMS app flow)
-12. Add the required default-SMS-app components to the manifest:
+### Phase 5 — Delete (default SMS app flow)
+16. Add the required default-SMS-app components to the manifest:
     `SmsDeliverReceiver`, `MmsWapPushReceiver`, `HeadlessSmsSendService`, and
     `ComposeSmsActivity`.
     - `SmsDeliverReceiver` **must** write incoming SMS to the provider and
       post a notification.
-13. `DefaultSmsRole.request()` / `isDefault()` exposed over the channel.
-14. `SmsChannel.deleteMessages(ids)`. It only runs when the app is the
+17. `DefaultSmsRole.request()` / `isDefault()` exposed over the channel.
+18. `SmsChannel.deleteMessages(ids)`. It only runs when the app is the
     default, only deletes messages that are already archived, and returns
     per-message results.
-15. Guided UX: "Archive & Delete" → role prompt → delete with progress →
+19. Guided UX: "Archive & Delete" → role prompt → delete with progress →
     "Restore your messaging app" screen that opens the role picker or default
     apps settings and does not let the user dismiss it until the default app
     has changed.
-16. **Restore from archive**: write archived messages back into the provider
+    - Check whether switching the default app away from Google Messages for
+      a few seconds affects RCS registration. Phase 0 spike.
+20. **Restore from archive**: write archived messages back into the provider
     (also requires being the default app). This is the safety net.
 
-### Phase 5 — Polish and hardening
-17. MMS support (read text parts and images, delete MMS).
-18. Batching and performance for large inboxes (10k+ messages).
-19. Edge cases: dual SIM, messages that arrive during the delete window,
+### Phase 6 — Polish and hardening
+21. MMS support (read text parts and images, delete MMS).
+22. Batching and performance for large inboxes (10k+ messages).
+23. Edge cases: dual SIM, messages that arrive during the delete window,
     the user cancelling the role dialog, app killed mid-delete (resume from
     a journal).
-20. Accessibility, dark mode, app icon, release signing config, and
+24. Accessibility, dark mode, app icon, release signing config, and
     versioned APKs (`v*` tags) published to GitHub Releases alongside the
     rolling `prototype` build.
 
-### Phase 6 — Optional enhancements
-21. "Live mode": a notification listener flags new political texts as they
-    arrive and batches them for the next cleanup.
-22. Scheduled reminders ("You have 37 new political texts — clean up?").
-23. On-device ML classifier trained on the user's labels.
-24. Opt-in cloud/LLM classification for borderline messages.
-25. Shareable community rule packs (e.g. updated candidate/PAC names each
+### Phase 7 — Optional enhancements
+25. Scheduled reminders ("You have 37 new political texts — clean up?").
+26. On-device ML classifier trained on the user's labels.
+27. Opt-in cloud/LLM classification for borderline messages.
+28. Shareable community rule packs (e.g. updated candidate/PAC names each
     election cycle).
 
-### Phase 7 — iOS (separate pass)
-26. Swift `ILMessageFilterExtension` target that uses the same rule set
+### Phase 8 — iOS (separate pass)
+29. Swift `ILMessageFilterExtension` target that uses the same rule set
     (rules serialized to JSON in an App Group container).
-27. Flutter iOS UI limited to rule editing, setup instructions, and a test
+30. Flutter iOS UI limited to rule editing, setup instructions, and a test
     box ("paste a message to see if it would be filtered").
-28. No scan, archive, or delete on iOS. Document this clearly in the app and
+31. No scan, archive, or delete on iOS. Document this clearly in the app and
     the README.
 
 ---
