@@ -33,6 +33,7 @@ object Cleanup {
     }
 
     /** Classifies the whole inbox and files political texts in the Spam folder as pending deletion. */
+    @Synchronized // one scan or delete at a time (UI and daily job)
     fun scan(context: Context): ScanResult {
         val store = SpamStore.get(context)
         store.purgeExpired()
@@ -82,6 +83,7 @@ object Cleanup {
     }
 
     /** Deletes pending messages from the inbox. Requires being the default SMS app. */
+    @Synchronized
     fun deletePending(context: Context): Pair<Int, Int> {
         val store = SpamStore.get(context)
         val pending = store.pendingSmsIds()

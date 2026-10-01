@@ -18,7 +18,9 @@ import io.flutter.plugin.common.MethodChannel
 import java.util.concurrent.Executors
 
 class MainActivity : FlutterActivity() {
-    private val worker = Executors.newSingleThreadExecutor()
+    // A pool, so quick calls (status, Spam folder list, export) aren't stuck
+    // behind a long scan or delete. Cleanup serializes scans and deletes itself.
+    private val worker = Executors.newCachedThreadPool()
     private val main = Handler(Looper.getMainLooper())
     private var pendingRoleResult: MethodChannel.Result? = null
     private var pendingPermissionResult: MethodChannel.Result? = null
