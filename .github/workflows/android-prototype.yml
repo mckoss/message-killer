@@ -1,0 +1,100 @@
+name: Android prototype APK
+
+# Builds a release APK and publishes it to the rolling "prototype" GitHub
+# Release, so the newest build is always at:
+#   https://github.com/mckoss/message-killer/releases/download/prototype/message-killer.apk
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # "Run workflow" button: build any branch on demand
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-prototype
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for Flutter project
+        id: project
+        run: |
+          if [ -f pubspec.yaml ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No pubspec.yaml yet - skipping APK build until the Flutter project is scaffolded."
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-java@v4
+        if: steps.project.outputs.exists == 'true'
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        if: steps.project.outputs.exists == 'true'
+        with:
+          channel: stable
+          cache: true
+
+      # Use a stable signing key (if configured) so new builds install as
+      # updates over old ones instead of requiring an uninstall.
+      - name: Configure release signing
+        if: steps.project.outputs.exists == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 not set - APK will be debug-signed; installing a new build may require uninstalling the old one."
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.jks
+          cat > android/key.properties <<PROPS
+          storeFile=release.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          PROPS
+
+      - name: Test
+        if: steps.project.outputs.exists == 'true'
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+
+      - name: Build APK
+        if: steps.project.outputs.exists == 'true'
+        run: |
+          flutter build apk --release --build-number=${{ github.run_number }}
+          cp build/app/outputs/flutter-apk/app-release.apk message-killer.apk
+
+      - name: Publish "prototype" release
+        if: steps.project.outputs.exists == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete prototype --cleanup-tag --yes || true
+          gh release create prototype message-killer.apk \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "Prototype build #${{ github.run_number }}" \
+            --notes "Built from \`${GITHUB_REF_NAME}\` @ ${GITHUB_SHA::7}.
+
+          Download on your phone: https://github.com/${GITHUB_REPOSITORY}/releases/download/prototype/message-killer.apk"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.project.outputs.exists == 'true'
+        with:
+          name: message-killer-${{ github.run_number }}
+          path: message-killer.apk

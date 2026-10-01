@@ -56,7 +56,31 @@ Check your setup with:
 flutter doctor
 ```
 
-## Getting started
+## Install the prototype on your phone (no computer needed)
+
+Each push to `main` builds an APK automatically (GitHub Actions →
+[`android-prototype.yml`](.github/workflows/android-prototype.yml)) and posts
+it to the rolling **prototype** release. On your Android phone, open this link
+in the browser:
+
+**https://github.com/mckoss/message-killer/releases/download/prototype/message-killer.apk**
+
+1. Download the file, then tap it in the notification or in *Files → Downloads*.
+2. The first time, Android will ask you to allow your browser to
+   *install unknown apps*. Allow it, then go back and tap **Install**.
+3. If Play Protect warns about an unrecognized app, tap *More details →
+   Install anyway*.
+4. To update later, open the same link again and install over the old version.
+
+The release page with build notes is
+<https://github.com/mckoss/message-killer/releases/tag/prototype>. To build a
+branch that isn't `main`, go to *Actions → Android prototype APK → Run
+workflow* and pick the branch.
+
+> The link starts working once the first prototype has been built (Phase 1 in
+> `plan.md`). Until then the workflow skips the build.
+
+## Building from source
 
 ```bash
 git clone https://github.com/mckoss/message-killer.git

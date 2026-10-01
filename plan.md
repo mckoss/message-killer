@@ -158,6 +158,19 @@ Each phase ends with something that runs on a real Android phone.
 1. `flutter create --org com.mckoss --platforms android,ios message_killer`
    at the repo root. Set up lints (`flutter_lints`/`very_good_analysis`) and
    CI (`flutter analyze`, `flutter test`).
+   - **Phone download pipeline:** `.github/workflows/android-prototype.yml`
+     is already in place. It builds the APK on every push to `main` and
+     publishes it to the rolling `prototype` release at
+     `releases/download/prototype/message-killer.apk`.
+   - **Stable signing:** change `android/app/build.gradle(.kts)` to load
+     `android/key.properties` when it exists and fall back to debug signing
+     when it doesn't. Create a keystore once with `keytool`, then add the
+     repo secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+     `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`. This lets each new
+     prototype install as an update. Without it, every CI build gets a
+     different debug key and the old app has to be uninstalled first, which
+     also wipes its archive. Add `key.properties` and `*.jks` to
+     `.gitignore`.
 2. **Spike: deletion round-trip on a real device.** Use a throwaway Kotlin
    activity to: request `ROLE_SMS` → delete one test SMS → hand the role back
    to Google Messages → confirm the message is still gone after Messages
@@ -213,7 +226,8 @@ Each phase ends with something that runs on a real Android phone.
     the user cancelling the role dialog, app killed mid-delete (resume from
     a journal).
 20. Accessibility, dark mode, app icon, release signing config, and
-    versioned APKs published to GitHub Releases.
+    versioned APKs (`v*` tags) published to GitHub Releases alongside the
+    rolling `prototype` build.
 
 ### Phase 6 — Optional enhancements
 21. "Live mode": a notification listener flags new political texts as they
