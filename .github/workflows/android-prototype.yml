@@ -82,7 +82,7 @@ jobs:
       - name: Native unit tests (classifier)
         if: steps.project.outputs.exists == 'true'
         working-directory: android
-        run: ./gradlew :app:testReleaseUnitTest --no-daemon
+        run: ./gradlew :app:testDebugUnitTest --no-daemon
 
       - name: Publish "prototype" release
         if: steps.project.outputs.exists == 'true'
