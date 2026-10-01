@@ -267,4 +267,22 @@ void main() {
     expect(api.calls, contains('exportSpam'));
     expect(find.textContaining('Saved 1 message to Downloads'), findsOneWidget);
   });
+
+  testWidgets('review screen exports only texts waiting to be deleted', (
+    tester,
+  ) async {
+    final api = FakeNativeApi(pending: 2, spam: null);
+    await tester.pumpWidget(MessageKillerApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Scan now'));
+    await pumpABit(tester);
+    await tester.tap(find.byTooltip('Export to Downloads'));
+    await pumpABit(tester);
+    expect(api.calls, contains('exportPending'));
+    expect(api.calls, isNot(contains('exportSpam')));
+    expect(
+      find.textContaining('Saved 2 messages to Downloads'),
+      findsOneWidget,
+    );
+  });
 }

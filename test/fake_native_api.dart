@@ -95,6 +95,9 @@ class FakeNativeApi implements NativeApi {
   }
 
   @override
+  Future<String> scanProgress() async => 'Reading your messages…';
+
+  @override
   Future<DeleteResult> deletePending() async {
     calls.add('deletePending');
     final deleted = pending;
@@ -139,10 +142,10 @@ class FakeNativeApi implements NativeApi {
   }
 
   @override
-  Future<ExportResult> exportSpam() async {
-    calls.add('exportSpam');
+  Future<ExportResult> exportSpam({bool pendingOnly = false}) async {
+    calls.add(pendingOnly ? 'exportPending' : 'exportSpam');
     return ExportResult(
-      count: spam.length,
+      count: pendingOnly ? pending : spam.length,
       files: const ['spam.json', 'spam.csv'],
     );
   }

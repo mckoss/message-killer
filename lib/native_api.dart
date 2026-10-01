@@ -174,10 +174,15 @@ abstract class NativeApi {
   Future<void> openDefaultAppsSettings();
   Future<bool> requestDefaultSmsRole();
   Future<ScanResult> scanInbox();
+
+  /// What the running scan or delete is doing right now (empty when idle).
+  Future<String> scanProgress();
   Future<DeleteResult> deletePending();
   Future<List<SpamEntry>> listSpam();
   Future<void> removeSpam(int id, {bool allowSender = false});
-  Future<ExportResult> exportSpam();
+
+  /// [pendingOnly]: only texts waiting to be deleted (the review screen).
+  Future<ExportResult> exportSpam({bool pendingOnly = false});
 
   /// Allow-lists [sender] and drops its texts that were waiting to be deleted.
   /// Returns how many texts were kept.
@@ -237,6 +242,10 @@ class MethodChannelNativeApi implements NativeApi {
   }
 
   @override
+  Future<String> scanProgress() async =>
+      await _channel.invokeMethod<String>('scanProgress') ?? '';
+
+  @override
   Future<DeleteResult> deletePending() async {
     final m = await _map('deletePending');
     return DeleteResult(
@@ -263,8 +272,8 @@ class MethodChannelNativeApi implements NativeApi {
       await _channel.invokeMethod<int>('allowSender', {'sender': sender}) ?? 0;
 
   @override
-  Future<ExportResult> exportSpam() async {
-    final m = await _map('exportSpam');
+  Future<ExportResult> exportSpam({bool pendingOnly = false}) async {
+    final m = await _map('exportSpam', {'pendingOnly': pendingOnly});
     return ExportResult(
       count: (m['count'] as num?)?.toInt() ?? 0,
       files: ((m['files'] as List?) ?? const []).cast<String>(),

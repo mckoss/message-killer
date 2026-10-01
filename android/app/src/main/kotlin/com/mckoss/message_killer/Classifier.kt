@@ -43,12 +43,7 @@ class Classifier(
             score += 0.5
             reasons += "Sent from a short code"
         }
-        // Verification codes keep their large negative score, so they stay visible.
-        if (sender != null && normalizeSender(sender) in tainted) {
-            score += THRESHOLD
-            reasons += TAINTED_REASON
-        }
-        return Result(score, reasons)
+        return applyTaint(Result(score, reasons), sender, tainted)
     }
 
     companion object {
@@ -56,6 +51,17 @@ class Classifier(
         const val TAINTED_REASON = "Sender previously sent political texts"
 
         private val SHORT_CODE = Regex("""^\d{5,6}$""")
+
+        /**
+         * Adds the "already sent political texts" weight when [sender] is in
+         * [taintedNormalized]. Verification codes keep their large negative
+         * score, so they stay visible.
+         */
+        fun applyTaint(result: Result, sender: String?, taintedNormalized: Set<String>): Result {
+            if (sender == null || normalizeSender(sender) !in taintedNormalized) return result
+            if (TAINTED_REASON in result.reasons) return result
+            return Result(result.score + THRESHOLD, result.reasons + TAINTED_REASON)
+        }
 
         private fun phrase(p: String) = Regex("""(?<![\p{L}\p{N}])(?:$p)(?![\p{L}\p{N}])""", RegexOption.IGNORE_CASE)
 

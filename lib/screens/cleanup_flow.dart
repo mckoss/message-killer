@@ -19,7 +19,8 @@ Future<void> runCleanup(BuildContext context, NativeApi api) async {
     return;
   }
 
-  final scan = await api.scanInbox();
+  if (!context.mounted) return;
+  final scan = await _withProgress(context, api, 'Scanning', api.scanInbox);
   if (scan.pending == 0) {
     messenger.showSnackBar(
       SnackBar(
@@ -54,13 +55,64 @@ Future<void> runCleanup(BuildContext context, NativeApi api) async {
     return;
   }
 
-  final result = await api.deletePending();
+  if (!context.mounted) return;
+  final result = await _withProgress(
+    context,
+    api,
+    'Deleting',
+    api.deletePending,
+  );
   await navigator.push(
     MaterialPageRoute<void>(
       fullscreenDialog: true,
       builder: (_) => SwitchBackScreen(api: api, result: result),
     ),
   );
+}
+
+/// Runs a long native task (scan or delete) behind a dialog that shows the
+/// native side's running counts, so it never looks frozen.
+Future<T> _withProgress<T>(
+  BuildContext context,
+  NativeApi api,
+  String title,
+  Future<T> Function() task,
+) async {
+  final progress = ValueNotifier('Starting…');
+  final timer = Timer.periodic(const Duration(milliseconds: 400), (_) async {
+    final text = await api.scanProgress();
+    if (text.isNotEmpty) progress.value = text;
+  });
+  final navigator = Navigator.of(context);
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => PopScope(
+      canPop: false,
+      child: AlertDialog(
+        title: Text(title),
+        content: Row(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(width: 20),
+            Expanded(
+              child: ValueListenableBuilder<String>(
+                valueListenable: progress,
+                builder: (_, text, _) => Text(text),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+  try {
+    return await task();
+  } finally {
+    timer.cancel();
+    navigator.pop();
+    progress.dispose();
+  }
 }
 
 /// Fallback when the system prompt is refused or never appears: send the user to

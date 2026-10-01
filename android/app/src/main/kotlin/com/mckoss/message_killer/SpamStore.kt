@@ -93,9 +93,23 @@ class SpamStore private constructor(context: Context) :
             .use { c -> buildSet { while (c.moveToNext()) add(c.getString(0)) } }
 
     @Synchronized
-    fun markTainted(senders: Collection<String>) {
+    fun markTainted(senders: Collection<String>) = inTransaction {
         val db = writableDatabase
         for (s in senders) addTainted(db, s)
+    }
+
+    /** Runs [block] in one database transaction (one disk sync instead of one per write). */
+    @Synchronized
+    fun <T> inTransaction(block: () -> T): T {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val result = block()
+            db.setTransactionSuccessful()
+            return result
+        } finally {
+            db.endTransaction()
+        }
     }
 
     @Synchronized

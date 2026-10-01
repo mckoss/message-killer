@@ -5,9 +5,14 @@ import '../native_api.dart';
 
 /// App-bar button that saves the Spam folder to Downloads as JSON + CSV.
 class ExportSpamButton extends StatefulWidget {
-  const ExportSpamButton({super.key, required this.api});
+  const ExportSpamButton({
+    super.key,
+    required this.api,
+    this.pendingOnly = false,
+  });
 
   final NativeApi api;
+  final bool pendingOnly;
 
   @override
   State<ExportSpamButton> createState() => _ExportSpamButtonState();
@@ -20,7 +25,9 @@ class _ExportSpamButtonState extends State<ExportSpamButton> {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _busy = true);
     try {
-      final result = await widget.api.exportSpam();
+      final result = await widget.api.exportSpam(
+        pendingOnly: widget.pendingOnly,
+      );
       messenger.showSnackBar(
         SnackBar(
           duration: const Duration(seconds: 8),

@@ -1,6 +1,5 @@
 package com.mckoss.message_killer
 
-import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
@@ -23,10 +22,12 @@ object SmsInbox {
 
     fun mmsId(rowId: Long) = -rowId
 
-    fun readInbox(context: Context): List<Message> =
-        (readSms(context) + readMms(context)).sortedByDescending { it.date }
+    fun readInbox(context: Context, onProgress: (String) -> Unit = {}): List<Message> {
+        val sms = readSms(context, onProgress)
+        return (sms + readMms(context, onProgress)).sortedByDescending { it.date }
+    }
 
-    private fun readSms(context: Context): List<Message> {
+    private fun readSms(context: Context, onProgress: (String) -> Unit): List<Message> {
         val projection = arrayOf(
             Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE,
         )
@@ -36,6 +37,7 @@ object SmsInbox {
         return cursor.use { c ->
             buildList {
                 while (c.moveToNext()) {
+                    if (size % 250 == 0) onProgress("Reading texts… $size")
                     add(Message(
                         id = c.getLong(0),
                         address = c.getString(1) ?: "",
@@ -51,7 +53,7 @@ object SmsInbox {
      * Incoming MMS ("picture messages", and long texts carriers send as MMS). The
      * text lives in text/plain parts and the sender in the addr table (type 137 = from).
      */
-    private fun readMms(context: Context): List<Message> {
+    private fun readMms(context: Context, onProgress: (String) -> Unit): List<Message> {
         val resolver = context.contentResolver
         val texts = HashMap<Long, StringBuilder>()
         try {
@@ -62,7 +64,9 @@ object SmsInbox {
                 arrayOf("text/plain"),
                 null,
             )?.use { c ->
+                var n = 0
                 while (c.moveToNext()) {
+                    if (n++ % 250 == 0) onProgress("Reading picture messages… $n")
                     val text = c.getString(2) ?: readPartText(context, c.getLong(0)) ?: continue
                     val sb = texts.getOrPut(c.getLong(1)) { StringBuilder() }
                     if (sb.isNotEmpty()) sb.append('\n')
@@ -74,24 +78,58 @@ object SmsInbox {
             return emptyList()
         }
 
+        onProgress("Matching picture messages to senders…")
+        val threadSenders = threadSenders(context)
         val messages = ArrayList<Message>()
         resolver.query(
             Telephony.Mms.Inbox.CONTENT_URI,
-            arrayOf(Telephony.Mms._ID, Telephony.Mms.DATE),
+            arrayOf(Telephony.Mms._ID, Telephony.Mms.DATE, Telephony.Mms.THREAD_ID),
             null, null, null,
         )?.use { c ->
             while (c.moveToNext()) {
                 val rowId = c.getLong(0)
                 val body = texts[rowId]?.toString()?.takeIf { it.isNotBlank() } ?: continue
+                val sender = if (threadSenders != null) {
+                    // Group conversations are skipped: they're with people, not bulk senders.
+                    threadSenders[c.getLong(2)] ?: continue
+                } else {
+                    mmsSender(context, rowId) // slow fallback: one query per message
+                }
                 messages += Message(
                     id = mmsId(rowId),
-                    address = mmsSender(context, rowId),
+                    address = sender,
                     body = body,
                     date = c.getLong(1) * 1000, // MMS dates are in seconds
                 )
             }
         }
         return messages
+    }
+
+    /**
+     * Sender for every one-to-one conversation, from two bulk queries (thread
+     * recipients + canonical addresses) instead of one query per MMS. Group
+     * conversations are left out. Returns null if this phone doesn't support it.
+     */
+    private fun threadSenders(context: Context): Map<Long, String>? = try {
+        val addresses = HashMap<Long, String>()
+        context.contentResolver.query(
+            Uri.parse("content://mms-sms/canonical-addresses"), arrayOf("_id", "address"), null, null, null,
+        )?.use { c -> while (c.moveToNext()) addresses[c.getLong(0)] = c.getString(1) ?: "" } ?: return null
+
+        val senders = HashMap<Long, String>()
+        context.contentResolver.query(
+            Uri.parse("content://mms-sms/conversations?simple=true"), arrayOf("_id", "recipient_ids"), null, null, null,
+        )?.use { c ->
+            while (c.moveToNext()) {
+                val ids = (c.getString(1) ?: "").trim().split(' ').filter { it.isNotEmpty() }
+                if (ids.size == 1) addresses[ids[0].toLongOrNull()]?.let { senders[c.getLong(0)] = it }
+            }
+        } ?: return null
+        senders
+    } catch (e: Exception) {
+        Log.w("MessageKiller", "Bulk thread lookup failed; falling back to per-message", e)
+        null
     }
 
     private fun readPartText(context: Context, partId: Long): String? = try {
@@ -110,17 +148,28 @@ object SmsInbox {
             null,
         )?.use { if (it.moveToFirst()) it.getString(0) else null } ?: ""
 
-    /** Deletes the given messages; returns the ids that were actually removed. */
-    fun delete(context: Context, ids: Collection<Long>): List<Long> = ids.filter { id ->
-        try {
-            val uri = if (id < 0) {
-                ContentUris.withAppendedId(Telephony.Mms.CONTENT_URI, -id)
-            } else {
-                ContentUris.withAppendedId(Telephony.Sms.CONTENT_URI, id)
+    /**
+     * Deletes the given messages in batches (one provider call per 500 rather than
+     * per message). Callers verify by re-reading the inbox.
+     */
+    fun delete(context: Context, ids: Collection<Long>, onProgress: (String) -> Unit = {}) {
+        val sms = ids.filter { it > 0 }
+        val mms = ids.filter { it < 0 }.map { -it }
+        var done = 0
+        for ((uri, rows) in listOf(Telephony.Sms.CONTENT_URI to sms, Telephony.Mms.CONTENT_URI to mms)) {
+            for (chunk in rows.chunked(500)) {
+                onProgress("Deleting… $done of ${ids.size}")
+                try {
+                    context.contentResolver.delete(
+                        uri,
+                        "_id IN (${chunk.joinToString(",") { "?" }})",
+                        chunk.map { it.toString() }.toTypedArray(),
+                    )
+                } catch (e: Exception) {
+                    Log.w("MessageKiller", "Batch delete failed", e)
+                }
+                done += chunk.size
             }
-            context.contentResolver.delete(uri, null, null) > 0
-        } catch (e: Exception) {
-            false
         }
     }
 

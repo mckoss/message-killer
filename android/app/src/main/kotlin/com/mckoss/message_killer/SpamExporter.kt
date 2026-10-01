@@ -14,10 +14,12 @@ import java.util.TimeZone
 object SpamExporter {
     data class Result(val count: Int, val files: List<String>)
 
-    fun export(context: Context): Result {
+    /** [pendingOnly]: just the texts waiting to be deleted (the review screen's export). */
+    fun export(context: Context, pendingOnly: Boolean = false): Result {
         val entries = SpamStore.get(context).list()
+            .filter { !pendingOnly || it.status == SpamStore.STATUS_PENDING }
         val stamp = SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.US).format(Date())
-        val base = "message-killer-spam-$stamp"
+        val base = if (pendingOnly) "message-killer-review-$stamp" else "message-killer-spam-$stamp"
         val json = "$base.json"
         val csv = "$base.csv"
         write(context, json, "application/json", toJson(entries))

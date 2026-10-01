@@ -43,6 +43,7 @@ class MainActivity : FlutterActivity() {
     private fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "getStatus" -> background(result) { status() }
+            "scanProgress" -> result.success(Cleanup.progress)
             "takeLaunchAction" -> result.success(launchAction.also { launchAction = null })
             "requestPermissions" -> requestPermissions(result)
             "openNotificationAccessSettings" -> {
@@ -74,7 +75,7 @@ class MainActivity : FlutterActivity() {
             }
             "listSpam" -> background(result) { store.list().map { it.toMap() } }
             "exportSpam" -> background(result) {
-                val export = SpamExporter.export(this)
+                val export = SpamExporter.export(this, pendingOnly = call.argument<Boolean>("pendingOnly") == true)
                 mapOf("count" to export.count, "files" to export.files)
             }
             "removeSpam" -> background(result) {

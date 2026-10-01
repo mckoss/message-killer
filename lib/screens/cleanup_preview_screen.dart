@@ -57,7 +57,7 @@ class _CleanupPreviewScreenState extends State<CleanupPreviewScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Review before deleting'),
-        actions: [ExportSpamButton(api: widget.api)],
+        actions: [ExportSpamButton(api: widget.api, pendingOnly: true)],
       ),
       body: pending == null
           ? const Center(child: CircularProgressIndicator())

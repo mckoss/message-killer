@@ -4,11 +4,16 @@ import android.Manifest
 import android.app.role.RoleManager
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.SystemClock
 import android.provider.Telephony
+import android.util.Log
 
 /** Scan-and-delete logic shared by the UI and the daily job. */
 object Cleanup {
     data class ScanResult(val scanned: Int, val newlyFiled: Int, val pending: Int)
+
+    /** Human-readable progress of the scan in flight, polled by the UI. */
+    @Volatile var progress: String = ""
 
     fun hasSmsPermission(context: Context) =
         context.checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
@@ -36,19 +41,43 @@ object Cleanup {
         val contacts = ContactsChecker(context)
         // Drop anything waiting for deletion whose sender has since been allowed
         // or added to contacts.
-        store.removePendingWhere { settings.isAllowed(it.sender) || contacts.isContact(it.sender) }
-        val messages = SmsInbox.readInbox(context).filter { !contacts.isContact(it.address) }
+        val start = SystemClock.elapsedRealtime()
+        fun lap(step: String) = Log.i("MessageKiller", "scan: $step at ${SystemClock.elapsedRealtime() - start} ms")
 
-        // Pass 1: any sender with a political text by content is tainted…
-        val byContent = settings.classifier(taintedSenders = emptyList())
-        store.markTainted(messages.filter { byContent.classify(it.body, it.address).isPolitical }.map { it.address })
-        // …pass 2: so everything else from that sender is filed too.
-        val classifier = settings.classifier()
-        var filed = 0
-        for (sms in messages) {
-            val result = classifier.classify(sms.body, sms.address)
-            if (result.isPolitical && store.fileFromInbox(sms, result)) filed++
+        progress = "Checking your allowed senders…"
+        store.removePendingWhere { settings.isAllowed(it.sender) || contacts.isContact(it.sender) }
+
+        progress = "Reading your messages…"
+        val all = SmsInbox.readInbox(context) { progress = it }
+        lap("read ${all.size} messages")
+
+        val messages = all.filterIndexed { i, sms ->
+            if (i % 250 == 0) progress = "Skipping your contacts… ${i + 1} of ${all.size}"
+            !contacts.isContact(sms.address)
         }
+        lap("contacts filtered, ${messages.size} left")
+
+        // Classify each message once by content; any sender with a political
+        // text is tainted, so everything else from it is filed too.
+        val byContent = settings.classifier(taintedSenders = emptyList())
+        val results = messages.mapIndexed { i, sms ->
+            if (i % 250 == 0) progress = "Checking message ${i + 1} of ${messages.size}…"
+            byContent.classify(sms.body, sms.address)
+        }
+        lap("classified")
+        store.markTainted(messages.filterIndexed { i, _ -> results[i].isPolitical }.map { it.address })
+        val tainted = store.taintedSenders()
+
+        var filed = 0
+        store.inTransaction {
+            messages.forEachIndexed { i, sms ->
+                if (i % 250 == 0) progress = "Saving to the Spam folder… ${i + 1} of ${messages.size}"
+                val result = Classifier.applyTaint(results[i], sms.address, tainted)
+                if (result.isPolitical && store.fileFromInbox(sms, result)) filed++
+            }
+        }
+        lap("filed $filed")
+        progress = ""
         return ScanResult(messages.size, filed, store.pendingSmsIds().size)
     }
 
@@ -57,11 +86,13 @@ object Cleanup {
         val store = SpamStore.get(context)
         val pending = store.pendingSmsIds()
         if (!isDefaultSmsApp(context)) return 0 to pending.size
-        SmsInbox.delete(context, pending)
+        SmsInbox.delete(context, pending) { progress = it }
         // Verify against the inbox rather than trusting delete() counts.
-        val stillThere = SmsInbox.readInbox(context).map { it.id }.toSet()
+        progress = "Checking that they're gone…"
+        val stillThere = SmsInbox.readInbox(context) { progress = "Checking that they're gone… $it" }.map { it.id }.toSet()
         val gone = pending.filter { it !in stillThere }
         store.markDeleted(gone)
+        progress = ""
         return gone.size to (pending.size - gone.size)
     }
 }
