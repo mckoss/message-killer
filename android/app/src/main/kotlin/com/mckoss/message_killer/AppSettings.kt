@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 
 /** User preferences shared by the UI, the notification listener, and background jobs. */
 class AppSettings(context: Context) {
+    private val appContext = context.applicationContext
     private val prefs: SharedPreferences =
         context.applicationContext.getSharedPreferences("message_killer", Context.MODE_PRIVATE)
 
@@ -29,7 +30,8 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_PREVIOUS_DEFAULT, null)
         set(value) = prefs.edit().putString(KEY_PREVIOUS_DEFAULT, value).apply()
 
-    fun classifier() = Classifier(customKeywords, allowedSenders)
+    fun classifier(taintedSenders: Collection<String> = SpamStore.get(appContext).taintedSenders()) =
+        Classifier(customKeywords, allowedSenders, taintedSenders)
 
     fun isAllowed(sender: String): Boolean {
         val normalized = Classifier.normalizeSender(sender)

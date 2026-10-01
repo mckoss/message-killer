@@ -80,7 +80,10 @@ class MainActivity : FlutterActivity() {
             "removeSpam" -> background(result) {
                 val id = call.argument<Number>("id")!!.toLong()
                 if (call.argument<Boolean>("allowSender") == true) {
-                    store.get(id)?.let { settings.allowSender(it.sender) }
+                    store.get(id)?.let {
+                        settings.allowSender(it.sender)
+                        store.untaint(it.sender)
+                    }
                 }
                 store.remove(id)
                 null
@@ -88,6 +91,7 @@ class MainActivity : FlutterActivity() {
             "allowSender" -> background(result) {
                 val sender = call.argument<String>("sender") ?: ""
                 settings.allowSender(sender)
+                store.untaint(sender)
                 val normalized = Classifier.normalizeSender(sender)
                 store.removePendingWhere { Classifier.normalizeSender(it.sender) == normalized }
             }

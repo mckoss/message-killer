@@ -10,6 +10,8 @@ package com.mckoss.message_killer
 class Classifier(
     customKeywords: Collection<String> = emptyList(),
     allowedSenders: Collection<String> = emptyList(),
+    /** Senders that already sent political texts; everything else from them is flagged too. */
+    taintedSenders: Collection<String> = emptyList(),
 ) {
     data class Rule(val label: String, val weight: Double, val pattern: Regex)
 
@@ -23,6 +25,7 @@ class Classifier(
         .map { Rule("Custom keyword: $it", THRESHOLD, phrase(Regex.escape(it))) }
 
     private val allowed = allowedSenders.map(::normalizeSender).filter { it.isNotEmpty() }.toSet()
+    private val tainted = taintedSenders.map(::normalizeSender).filter { it.isNotEmpty() }.toSet()
 
     fun classify(body: String, sender: String? = null): Result {
         if (sender != null && normalizeSender(sender) in allowed) {
@@ -40,11 +43,17 @@ class Classifier(
             score += 0.5
             reasons += "Sent from a short code"
         }
+        // Verification codes keep their large negative score, so they stay visible.
+        if (sender != null && normalizeSender(sender) in tainted) {
+            score += THRESHOLD
+            reasons += TAINTED_REASON
+        }
         return Result(score, reasons)
     }
 
     companion object {
         const val THRESHOLD = 3.0
+        const val TAINTED_REASON = "Sender previously sent political texts"
 
         private val SHORT_CODE = Regex("""^\d{5,6}$""")
 

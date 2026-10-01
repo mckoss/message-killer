@@ -108,6 +108,27 @@ class ClassifierTest {
     }
 
     @Test
+    fun everythingFromATaintedSenderIsFlagged() {
+        val c = Classifier(taintedSenders = listOf("+15042944686"))
+        val result = c.classify("Thanks for being with us this year!", sender = "(504) 294-4686")
+        assertTrue(result.isPolitical)
+        assertTrue(result.reasons.contains(Classifier.TAINTED_REASON))
+        assertFalse(c.classify("Thanks for being with us this year!", sender = "(504) 294-0000").isPolitical)
+    }
+
+    @Test
+    fun taintedSenderStillCannotHideVerificationCodes() {
+        val c = Classifier(taintedSenders = listOf("90999"))
+        assertFalse(c.classify("Your verification code is 482913", sender = "90999").isPolitical)
+    }
+
+    @Test
+    fun allowListBeatsTaint() {
+        val c = Classifier(allowedSenders = listOf("5042944686"), taintedSenders = listOf("5042944686"))
+        assertFalse(c.classify("Chip in \$5 at actblue.com", sender = "+15042944686").isPolitical)
+    }
+
+    @Test
     fun allowListedSenderIsNeverFlagged() {
         val custom = Classifier(allowedSenders = listOf("+1 (555) 123-4567"))
         val result = custom.classify(political[0], sender = "5551234567")

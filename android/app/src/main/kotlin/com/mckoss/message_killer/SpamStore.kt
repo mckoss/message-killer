@@ -12,7 +12,7 @@ import kotlin.math.abs
  * removed from the inbox. Entries are kept for [RETENTION_DAYS] days.
  */
 class SpamStore private constructor(context: Context) :
-    SQLiteOpenHelper(context.applicationContext, "spam.db", null, 1) {
+    SQLiteOpenHelper(context.applicationContext, "spam.db", null, 2) {
 
     data class Entry(
         val id: Long,
@@ -58,9 +58,50 @@ class SpamStore private constructor(context: Context) :
             """.trimIndent()
         )
         db.execSQL("CREATE INDEX spam_time ON spam(message_time)")
+        createTainted(db)
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) {
+            createTainted(db)
+            db.rawQuery("SELECT DISTINCT sender FROM spam", null).use { c ->
+                while (c.moveToNext()) addTainted(db, c.getString(0))
+            }
+        }
+    }
+
+    /**
+     * Normalized senders that have sent at least one political text. Kept separately
+     * from the Spam folder so a sender stays flagged after its entries are purged.
+     */
+    private fun createTainted(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS tainted_senders (sender TEXT PRIMARY KEY, added_at INTEGER NOT NULL)")
+    }
+
+    private fun addTainted(db: SQLiteDatabase, sender: String) {
+        val normalized = Classifier.normalizeSender(sender)
+        if (normalized.isEmpty()) return
+        db.insertWithOnConflict("tainted_senders", null, ContentValues().apply {
+            put("sender", normalized)
+            put("added_at", System.currentTimeMillis())
+        }, SQLiteDatabase.CONFLICT_IGNORE)
+    }
+
+    @Synchronized
+    fun taintedSenders(): Set<String> =
+        readableDatabase.rawQuery("SELECT sender FROM tainted_senders", null)
+            .use { c -> buildSet { while (c.moveToNext()) add(c.getString(0)) } }
+
+    @Synchronized
+    fun markTainted(senders: Collection<String>) {
+        val db = writableDatabase
+        for (s in senders) addTainted(db, s)
+    }
+
+    @Synchronized
+    fun untaint(sender: String) {
+        writableDatabase.delete("tainted_senders", "sender = ?", arrayOf(Classifier.normalizeSender(sender)))
+    }
 
     /** Records a message whose notification we cancelled. Returns false if it was already recorded. */
     @Synchronized
@@ -192,6 +233,7 @@ class SpamStore private constructor(context: Context) :
             put("reasons", result.reasons.joinToString("\n"))
             if (smsId != null) put("sms_id", smsId)
         })
+        addTainted(writableDatabase, sender)
     }
 
     /** Same text received within [MATCH_WINDOW_MS] of [time] is treated as the same message. */

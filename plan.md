@@ -144,6 +144,10 @@ Android is done.
     openers ("UPDATE:", "BREAKING:"), "Hail Mary request",
     "end-of-quarter" / "legally required deadline", "2X-matching every
     gift". These came from real texts and are covered by unit tests.
+  - **Tainted senders:** once a sender has sent one political text (by
+    content), every message from it is flagged ("Sender previously sent
+    political texts"), except verification codes. Stored in its own table
+    so it outlives the 90-day Spam folder purge; "Allow sender" clears it.
   - Sender: short codes (5–6 digits) add a small amount. Most of these texts
     come from ordinary 10-digit numbers, though, so content is what counts.
   - **Safety:** one-time codes / verification messages get a large negative

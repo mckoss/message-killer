@@ -33,15 +33,19 @@ object Cleanup {
         store.purgeExpired()
         if (!hasSmsPermission(context)) return ScanResult(0, 0, store.pendingSmsIds().size)
         val settings = AppSettings(context)
-        val classifier = settings.classifier()
         val contacts = ContactsChecker(context)
         // Drop anything waiting for deletion whose sender has since been allowed
         // or added to contacts.
         store.removePendingWhere { settings.isAllowed(it.sender) || contacts.isContact(it.sender) }
-        val messages = SmsInbox.readInbox(context)
+        val messages = SmsInbox.readInbox(context).filter { !contacts.isContact(it.address) }
+
+        // Pass 1: any sender with a political text by content is tainted…
+        val byContent = settings.classifier(taintedSenders = emptyList())
+        store.markTainted(messages.filter { byContent.classify(it.body, it.address).isPolitical }.map { it.address })
+        // …pass 2: so everything else from that sender is filed too.
+        val classifier = settings.classifier()
         var filed = 0
         for (sms in messages) {
-            if (contacts.isContact(sms.address)) continue
             val result = classifier.classify(sms.body, sms.address)
             if (result.isPolitical && store.fileFromInbox(sms, result)) filed++
         }

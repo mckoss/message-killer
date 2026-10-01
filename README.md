@@ -17,6 +17,9 @@ RCS chat keeps working.
 - **Preview:** before any delete, you see exactly which texts will go. The
   shield button on any text **allows that sender** (their texts stay, and are
   never filtered again).
+- **Flagged senders:** once a number sends one political text, everything
+  else from that number is filtered too (except verification codes). "Allow
+  sender" undoes this.
 - **Contacts are never filtered:** with Contacts access, texts from anyone in
   your contacts (including synced Google contacts) are never silenced or
   deleted. Other allowed senders can be viewed and removed under *Filter
