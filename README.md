@@ -11,7 +11,7 @@ RCS chat keeps working.
   your SMS inbox, saves them to the Spam folder, and deletes them from the
   inbox.
 - **Spam folder:** every filtered text is kept for **90 days** along with the
-  reasons it was flagged. "Not political" removes it and allow-lists the
+  reasons it was flagged. "Not spam" removes it and allow-lists the
   sender. **Export** (download icon) saves everything to your Downloads
   folder as JSON and CSV.
 - **Preview:** before any delete, you see exactly which texts will go. The

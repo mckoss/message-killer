@@ -166,7 +166,7 @@ class SpamEntryScreen extends StatelessWidget {
           const SizedBox(height: 24),
           OutlinedButton.icon(
             icon: const Icon(Icons.verified_user_outlined),
-            label: const Text('Not political: allow sender'),
+            label: const Text('Not spam: allow sender'),
             onPressed: () => _allowSender(context),
           ),
         ],

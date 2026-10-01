@@ -140,7 +140,7 @@ void main() {
   });
 
   testWidgets(
-    'spam folder lists entries and "Not political" allow-lists the sender',
+    'spam folder lists entries and "Not spam" allow-lists the sender',
     (tester) async {
       final api = FakeNativeApi(
         spam: [
@@ -161,7 +161,7 @@ void main() {
       expect(find.text('Asks for a donation'), findsOneWidget);
 
       await tester.tap(
-        find.widgetWithText(OutlinedButton, 'Not political: allow sender'),
+        find.widgetWithText(OutlinedButton, 'Not spam: allow sender'),
       );
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(FilledButton, 'Allow sender'));
