@@ -46,7 +46,7 @@ RCS chat keeps working.
    files a copy in the Spam folder. Your phone may still buzz once before the
    notification is removed.
 3. **Clean up:** Android only lets the *default SMS app* delete texts. When
-   you tap **Clean up now** (or the daily reminder):
+   you tap **Scan now** (or the daily reminder) and confirm on the review screen:
    1. Message Killer files the political texts in your inbox.
    2. It asks to become the default SMS app for a moment.
    3. It deletes those texts.
@@ -131,7 +131,7 @@ installing apps from that source.
    settings*, then try again. Sideloaded apps on Android 13+ need this.
 2. **Turn on the live filter:** tap *Open*, choose Message Killer, and allow
    notification access. This step may also need "Allow restricted settings".
-3. Tap **Clean up now** to clear the backlog. When asked, choose Message Killer
+3. Tap **Scan now**, review the list, then tap **Delete**. When asked, choose Message Killer
    as the default SMS app. Then use **Switch back** to make Google Messages
    the default again.
 4. Optional: turn on **Daily cleanup reminder**.

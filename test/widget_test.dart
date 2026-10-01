@@ -39,7 +39,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Finish setup'), findsNothing);
     expect(find.text('Live filter'), findsOneWidget);
-    expect(find.text('Clean up now'), findsOneWidget);
+    expect(find.text('Scan now'), findsOneWidget);
   });
 
   testWidgets('cleanup: confirm, take SMS role, delete, then switch back', (
@@ -49,7 +49,7 @@ void main() {
     await tester.pumpWidget(MessageKillerApp(api: api));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Clean up now'));
+    await tester.tap(find.text('Scan now'));
     await pumpABit(tester);
     expect(find.text('Review before deleting'), findsOneWidget);
     expect(find.textContaining('3 texts will be deleted'), findsOneWidget);
@@ -84,7 +84,7 @@ void main() {
     await tester.pumpWidget(MessageKillerApp(api: api));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Clean up now'));
+    await tester.tap(find.text('Scan now'));
     await pumpABit(tester);
     await tester.tap(find.widgetWithText(FilledButton, 'Delete 2'));
     await pumpABit(tester);
@@ -103,7 +103,7 @@ void main() {
     await tester.pumpWidget(MessageKillerApp(api: api));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Clean up now'));
+    await tester.tap(find.text('Scan now'));
     await pumpABit(tester);
     await tester.tap(find.widgetWithText(FilledButton, 'Delete 2'));
     await pumpABit(tester);
@@ -120,7 +120,7 @@ void main() {
   testWidgets('cleanup with nothing to delete shows a message', (tester) async {
     await tester.pumpWidget(MessageKillerApp(api: FakeNativeApi()));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Clean up now'));
+    await tester.tap(find.text('Scan now'));
     await tester.pumpAndSettle();
     expect(
       find.text('No political texts found in 100 messages.'),
@@ -210,7 +210,7 @@ void main() {
     await tester.pumpWidget(MessageKillerApp(api: api));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Clean up now'));
+    await tester.tap(find.text('Scan now'));
     await pumpABit(tester);
     expect(find.widgetWithText(FilledButton, 'Delete 2'), findsOneWidget);
     await tester.tap(find.byTooltip('Allow sender').first);

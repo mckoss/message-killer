@@ -245,8 +245,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         dimension: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.delete_sweep),
-                label: const Text('Clean up now'),
+                    : const Icon(Icons.search),
+                label: const Text('Scan now'),
                 onPressed: _busy || !status.smsPermission ? null : _cleanup,
               ),
             ),

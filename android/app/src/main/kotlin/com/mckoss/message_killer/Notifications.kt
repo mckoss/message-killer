@@ -53,7 +53,7 @@ object Notifications {
         manager(context).notify(ID_CLEANUP_READY, Notification.Builder(context, CHANNEL_CLEANUP)
             .setSmallIcon(android.R.drawable.ic_menu_delete)
             .setContentTitle("Message Killer")
-            .setContentText("$text. Tap to clean up.")
+            .setContentText("$text. Tap to review.")
             .setContentIntent(openAppIntent(context, ACTION_CLEANUP))
             .setAutoCancel(true)
             .build())

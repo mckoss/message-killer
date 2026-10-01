@@ -104,7 +104,7 @@ class Classifier(
 
             // Bulk-marketing opt-out footer – weak on its own.
             Rule("Bulk-text opt-out footer", 1.0,
-                Regex("""(reply|txt|text)\s+stop|stop\s*(2|to)\s*(end|quit|opt[-\s]?out|unsub\w*)|stop2end|stop=end""", RegexOption.IGNORE_CASE)),
+                Regex("""(reply|txt|text)\s+stop|stop\s*(2|to)\s*(end|quit|stop|opt[-\s]?out|unsub\w*)|stop2end|stop=end|\bend2end\b""", RegexOption.IGNORE_CASE)),
 
             // Safety valve: never hide one-time codes or verification messages.
             Rule("Looks like a verification code (never hidden)", -10.0,

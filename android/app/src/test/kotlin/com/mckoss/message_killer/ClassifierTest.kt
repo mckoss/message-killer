@@ -29,6 +29,28 @@ class ClassifierTest {
         "Amy Klobuchar here. This is the final end-of-quarter deadline befo",
     )
 
+    // Opt-out footer variants seen in a real export.
+    @Test
+    fun recognizesFooterVariants() {
+        for (footer in listOf("Stop2End", "Stop to End", "StopToEnd", "End2End", "Stop to stop", "Text STOP to quit")) {
+            assertTrue(footer, classifier.classify("Hello $footer").reasons.contains("Bulk-text opt-out footer"))
+        }
+    }
+
+    // Long picture message (MMS) from a real inbox, names removed.
+    @Test
+    fun flagsLongBallotMeasureMms() {
+        val text = """
+            Hey — what do you think about our bus? Our goal is to hit the road traveling all across
+            California talking with undecided voters about passing the first ever Billionaire Tax.
+            Will you rush a donation? https://dem.secure-act.co/xxxx
+            Will you pitch in ${'$'}15 or ${'$'}25 to directly fund our bus?
+            Paid for by Tax the Ultra-Rich Now, Yes on 3 & 40, No on 41 & 42.
+            Stop2End
+        """.trimIndent()
+        assertTrue(classifier.classify(text).isPolitical)
+    }
+
     private val normal = listOf(
         "Hey, are we still on for dinner tonight?",
         "Your verification code is 482913. Don't share it with anyone.",

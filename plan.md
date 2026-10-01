@@ -286,7 +286,8 @@ Flutter UI:
     still on Message Killer as the default.
 
 ### Phase 4 — Hardening
-23. MMS: read, classify, and delete MMS text parts. Handle MMS that arrives
+23. ✅ Read, classify, and delete MMS text parts (picture/long messages).
+    TODO: handle MMS that arrives
     while we hold the role.
 24. Large inboxes (10k+ messages): batching and progress.
 25. Dual SIM. App killed mid-delete (resume from a journal).
