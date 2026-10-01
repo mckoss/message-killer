@@ -78,6 +78,9 @@ in the browser:
 3. If Play Protect warns about an unrecognized app, tap *More details →
    Install anyway*.
 4. To update later, open the same link again and install over the old version.
+   Builds are signed with a fixed prototype key (see
+   `android/prototype-signing/`), so updates keep your Spam folder and
+   settings.
 
 The release page with build notes is
 <https://github.com/mckoss/message-killer/releases/tag/prototype>. To build a

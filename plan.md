@@ -214,12 +214,13 @@ client from scratch.
    runs analysis and tests, builds the APK, and publishes it to the rolling
    `prototype` release at
    `releases/download/prototype/message-killer.apk`.
-3. **Stable signing:** `android/app/build.gradle.kts` loads
-   `android/key.properties` when it exists and falls back to debug signing
-   otherwise. To make each new prototype install as an *update* (keeping the
-   Spam folder), create a keystore once and add the repo secrets
-   `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
-   `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`.
+3. **Stable signing:** builds are signed with a committed, public prototype
+   key (`android/prototype-signing/`), so each new prototype installs as an
+   *update* and keeps the Spam folder. **TODO:** replace it with a private
+   key stored as the repo secrets `ANDROID_KEYSTORE_BASE64`,
+   `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and
+   `ANDROID_KEY_PASSWORD`. `build.gradle.kts` uses those automatically when
+   present. Switching keys requires one uninstall.
 
 ### Phase 1 — MVP ✅ (built; needs validation on a real phone)
 The Kotlin code is type-checked and the classifier and UI have tests. Device

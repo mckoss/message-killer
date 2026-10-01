@@ -7,7 +7,7 @@ plugins {
 }
 
 // Release signing: CI writes android/key.properties from repo secrets. Without it,
-// builds fall back to the debug key (fine for local `flutter run`).
+// builds use the committed (public) prototype key.
 val keystoreProperties = Properties().apply {
     val file = rootProject.file("key.properties")
     if (file.exists()) file.inputStream().use { load(it) }
@@ -46,12 +46,21 @@ android {
                 keyAlias = keystoreProperties.getProperty("keyAlias")
                 keyPassword = keystoreProperties.getProperty("keyPassword")
             }
+        } else {
+            // Public prototype key (see android/prototype-signing/README.md) so
+            // successive builds install as updates. Replaced by secrets later.
+            create("release") {
+                storeFile = rootProject.file("prototype-signing/prototype.jks")
+                storePassword = "prototype"
+                keyAlias = "prototype"
+                keyPassword = "prototype"
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

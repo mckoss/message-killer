@@ -55,7 +55,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "::warning::ANDROID_KEYSTORE_BASE64 not set - APK will be debug-signed; installing a new build may require uninstalling the old one."
+            echo "ANDROID_KEYSTORE_BASE64 not set - signing with the public prototype key."
             exit 0
           fi
           echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.jks
