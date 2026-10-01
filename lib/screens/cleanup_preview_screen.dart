@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../format.dart';
 import '../native_api.dart';
+import 'allow_sender.dart';
 import 'export_action.dart';
 import 'spam_folder_screen.dart';
 
@@ -72,7 +73,8 @@ class _CleanupPreviewScreenState extends State<CleanupPreviewScreen> {
                           ? 'Nothing left to delete.'
                           : '${plural(count, 'text')} will be deleted from your inbox. '
                                 'Copies stay in the Spam folder for ${widget.status.retentionDays} days.\n\n'
-                                'Tap a text to see why it was flagged, or mark it "Not political" to keep it. '
+                                'Tap a text to see why it was flagged. Tap the shield to always allow a sender '
+                                '(their texts stay in your inbox). '
                                 'Tip: export a backup first (download icon above).',
                       style: theme.textTheme.bodyMedium,
                     ),
@@ -90,7 +92,20 @@ class _CleanupPreviewScreenState extends State<CleanupPreviewScreen> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  trailing: Text(formatShortDate(entry.messageTime)),
+                  leading: Text(formatShortDate(entry.messageTime)),
+                  trailing: IconButton(
+                    tooltip: 'Allow sender',
+                    icon: const Icon(Icons.verified_user_outlined),
+                    onPressed: () async {
+                      if (await confirmAllowSender(
+                        context,
+                        widget.api,
+                        entry,
+                      )) {
+                        await _load();
+                      }
+                    },
+                  ),
                   onTap: () => _open(entry),
                 );
               },

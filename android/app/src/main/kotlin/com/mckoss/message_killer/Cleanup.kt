@@ -32,10 +32,16 @@ object Cleanup {
         val store = SpamStore.get(context)
         store.purgeExpired()
         if (!hasSmsPermission(context)) return ScanResult(0, 0, store.pendingSmsIds().size)
-        val classifier = AppSettings(context).classifier()
+        val settings = AppSettings(context)
+        val classifier = settings.classifier()
+        val contacts = ContactsChecker(context)
+        // Drop anything waiting for deletion whose sender has since been allowed
+        // or added to contacts.
+        store.removePendingWhere { settings.isAllowed(it.sender) || contacts.isContact(it.sender) }
         val messages = SmsInbox.readInbox(context)
         var filed = 0
         for (sms in messages) {
+            if (contacts.isContact(sms.address)) continue
             val result = classifier.classify(sms.body, sms.address)
             if (result.isPolitical && store.fileFromInbox(sms, result)) filed++
         }

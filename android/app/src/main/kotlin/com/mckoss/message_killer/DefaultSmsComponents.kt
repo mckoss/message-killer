@@ -27,7 +27,7 @@ class SmsDeliverReceiver : BroadcastReceiver() {
         val subId = intent.getIntExtra("subscription", -1)
 
         val result = AppSettings(context).classifier().classify(body, sender)
-        if (result.isPolitical) {
+        if (result.isPolitical && !ContactsChecker(context).isContact(sender)) {
             SpamStore.get(context).recordIntercepted(sender, body, time, result)
             Log.i("MessageKiller", "Intercepted political SMS while default app")
         } else {

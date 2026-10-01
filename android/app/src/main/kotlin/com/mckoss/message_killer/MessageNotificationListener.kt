@@ -14,7 +14,7 @@ import android.util.Log
  * messages are all political, recording them in the Spam folder.
  */
 class MessageNotificationListener : NotificationListenerService() {
-    data class IncomingMessage(val sender: String, val text: String, val time: Long)
+    data class IncomingMessage(val sender: String, val text: String, val time: Long, val senderUri: String? = null)
 
     override fun onListenerConnected() {
         // Catch anything that arrived while we weren't connected.
@@ -41,6 +41,10 @@ class MessageNotificationListener : NotificationListenerService() {
 
         val messages = extractMessages(notification, sbn.postTime)
         if (messages.isEmpty()) return
+
+        // Texts from contacts are never filtered.
+        val contacts = ContactsChecker(this)
+        if (messages.any { contacts.isContact(it.sender, it.senderUri) }) return
 
         val classifier = settings.classifier()
         val results = messages.map { it to classifier.classify(it.text, it.sender) }
@@ -100,7 +104,7 @@ class MessageNotificationListener : NotificationListenerService() {
                     val sender = person?.name?.toString() ?: bundle.getCharSequence("sender")?.toString()
                     // A null sender means the message was written by the phone's owner.
                     if (sender == null && person == null) return@mapNotNull null
-                    IncomingMessage(sender ?: conversationTitle ?: title ?: "", text, bundle.getLong("time", postTime))
+                    IncomingMessage(sender ?: conversationTitle ?: title ?: "", text, bundle.getLong("time", postTime), person?.uri)
                 }
                 if (messages.isNotEmpty()) return messages
             }

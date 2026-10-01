@@ -111,6 +111,21 @@ class SpamStore private constructor(context: Context) :
             arrayOf(STATUS_PENDING),
         ).use { c -> buildList { while (c.moveToNext()) add(c.getLong(0)) } }
 
+    /** Removes pending (not yet deleted) entries matching [predicate]; returns how many. */
+    @Synchronized
+    fun removePendingWhere(predicate: (Entry) -> Boolean): Int {
+        val doomed = list().filter { it.status == STATUS_PENDING && predicate(it) }
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for (e in doomed) db.delete("spam", "id = ?", arrayOf(e.id.toString()))
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+        return doomed.size
+    }
+
     @Synchronized
     fun markDeleted(smsIds: Collection<Long>) {
         val db = writableDatabase

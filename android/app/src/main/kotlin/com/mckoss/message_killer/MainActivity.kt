@@ -85,6 +85,12 @@ class MainActivity : FlutterActivity() {
                 store.remove(id)
                 null
             }
+            "allowSender" -> background(result) {
+                val sender = call.argument<String>("sender") ?: ""
+                settings.allowSender(sender)
+                val normalized = Classifier.normalizeSender(sender)
+                store.removePendingWhere { Classifier.normalizeSender(it.sender) == normalized }
+            }
             "getSettings" -> result.success(mapOf(
                 "liveFilter" to settings.liveFilter,
                 "dailyCleanup" to settings.dailyCleanup,
@@ -118,6 +124,7 @@ class MainActivity : FlutterActivity() {
         return mapOf(
             "smsPermission" to Cleanup.hasSmsPermission(this),
             "notificationAccess" to hasNotificationAccess(),
+            "contactsPermission" to ContactsChecker(this).hasPermission,
             "isDefaultSmsApp" to Cleanup.isDefaultSmsApp(this),
             "defaultSmsApp" to appLabel(defaultSms),
             "previousDefaultSmsApp" to appLabel(previous),
@@ -146,6 +153,7 @@ class MainActivity : FlutterActivity() {
     private fun requestPermissions(result: MethodChannel.Result) {
         val wanted = buildList {
             add(Manifest.permission.READ_SMS)
+            add(Manifest.permission.READ_CONTACTS)
             if (Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
         }.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (wanted.isEmpty()) {

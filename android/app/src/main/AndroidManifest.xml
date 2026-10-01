@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Read the SMS inbox to find political texts. -->
     <uses-permission android:name="android.permission.READ_SMS" />
+    <!-- Texts from contacts are never filtered. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
     <!-- Needed to qualify for (and act as) the default SMS app during cleanup. -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_MMS" />

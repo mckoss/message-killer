@@ -31,6 +31,11 @@ class AppSettings(context: Context) {
 
     fun classifier() = Classifier(customKeywords, allowedSenders)
 
+    fun isAllowed(sender: String): Boolean {
+        val normalized = Classifier.normalizeSender(sender)
+        return normalized.isNotEmpty() && allowedSenders.any { Classifier.normalizeSender(it) == normalized }
+    }
+
     fun allowSender(sender: String) {
         if (sender.isBlank()) return
         val normalized = Classifier.normalizeSender(sender)

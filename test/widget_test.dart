@@ -16,12 +16,17 @@ void main() {
   testWidgets('shows setup steps until permissions are granted', (
     tester,
   ) async {
-    final api = FakeNativeApi(smsPermission: false, notificationAccess: false);
+    final api = FakeNativeApi(
+      smsPermission: false,
+      notificationAccess: false,
+      contactsPermission: false,
+    );
     await tester.pumpWidget(MessageKillerApp(api: api));
     await tester.pumpAndSettle();
 
     expect(find.text('Finish setup'), findsOneWidget);
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Allow'));
+    expect(find.text('Never filter your contacts'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Allow').first);
     await tester.pumpAndSettle();
     expect(api.calls, contains('requestPermissions'));
 
@@ -155,9 +160,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Asks for a donation'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Not political'));
+      await tester.tap(
+        find.widgetWithText(OutlinedButton, 'Not political: allow sender'),
+      );
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilledButton, 'Not political'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Allow sender'));
       await tester.pumpAndSettle();
 
       expect(api.allowedSenders, ['Smith for Congress']);
@@ -196,29 +203,57 @@ void main() {
     expect(find.text('Would be filtered'), findsOneWidget);
   });
 
-  testWidgets(
-    'preview: cancel deletes nothing; "Not political" removes a text',
-    (tester) async {
-      final api = FakeNativeApi(pending: 2);
-      await tester.pumpWidget(MessageKillerApp(api: api));
-      await tester.pumpAndSettle();
+  testWidgets('preview: "Allow sender" keeps that sender\'s texts', (
+    tester,
+  ) async {
+    final api = FakeNativeApi(pending: 2);
+    await tester.pumpWidget(MessageKillerApp(api: api));
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Clean up now'));
-      await pumpABit(tester);
-      await tester.tap(find.textContaining('#1').first);
-      await pumpABit(tester);
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Not political'));
-      await pumpABit(tester);
-      await tester.tap(find.widgetWithText(FilledButton, 'Not political'));
-      await pumpABit(tester);
+    await tester.tap(find.text('Clean up now'));
+    await pumpABit(tester);
+    expect(find.widgetWithText(FilledButton, 'Delete 2'), findsOneWidget);
+    await tester.tap(find.byTooltip('Allow sender').first);
+    await pumpABit(tester);
+    expect(find.text('Always allow 88020?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Allow sender'));
+    await pumpABit(tester);
 
-      expect(find.widgetWithText(FilledButton, 'Delete 1'), findsOneWidget);
-      await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
-      await pumpABit(tester);
-      expect(api.calls, isNot(contains('requestDefaultSmsRole')));
-      expect(api.calls, isNot(contains('deletePending')));
-    },
-  );
+    expect(api.allowedSenders, ['88020']);
+    expect(find.widgetWithText(FilledButton, 'Delete 1'), findsOneWidget);
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
+    await pumpABit(tester);
+    expect(api.calls, isNot(contains('requestDefaultSmsRole')));
+    expect(api.calls, isNot(contains('deletePending')));
+  });
+
+  testWidgets('allowed senders: shows contacts note, add and remove', (
+    tester,
+  ) async {
+    final api = FakeNativeApi()..allowedSenders = ['(302) 464-8095'];
+    await tester.pumpWidget(MessageKillerApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Filter settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Allowed senders'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Everyone in your contacts'), findsOneWidget);
+    expect(find.text('Always allowed automatically'), findsOneWidget);
+    expect(find.text('(302) 464-8095'), findsOneWidget);
+
+    await tester.tap(find.text('Add'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), '555-0100');
+    await tester.tap(find.widgetWithText(FilledButton, 'Allow'));
+    await tester.pumpAndSettle();
+    expect(api.allowedSenders, ['(302) 464-8095', '555-0100']);
+
+    await tester.tap(find.byTooltip('Remove (302) 464-8095'));
+    await tester.pumpAndSettle();
+    expect(api.allowedSenders, ['555-0100']);
+    expect(find.text('(302) 464-8095'), findsNothing);
+  });
 
   testWidgets('spam folder export saves to Downloads', (tester) async {
     final api = FakeNativeApi(spam: [spamEntry(1)]);

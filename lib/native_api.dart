@@ -5,6 +5,7 @@ class AppStatus {
   const AppStatus({
     required this.smsPermission,
     required this.notificationAccess,
+    this.contactsPermission = false,
     required this.isDefaultSmsApp,
     required this.defaultSmsApp,
     required this.previousDefaultSmsApp,
@@ -18,6 +19,7 @@ class AppStatus {
 
   final bool smsPermission;
   final bool notificationAccess;
+  final bool contactsPermission;
   final bool isDefaultSmsApp;
   final String? defaultSmsApp;
   final String? previousDefaultSmsApp;
@@ -38,6 +40,7 @@ class AppStatus {
     return AppStatus(
       smsPermission: m['smsPermission'] == true,
       notificationAccess: m['notificationAccess'] == true,
+      contactsPermission: m['contactsPermission'] == true,
       isDefaultSmsApp: m['isDefaultSmsApp'] == true,
       defaultSmsApp: m['defaultSmsApp'] as String?,
       previousDefaultSmsApp: m['previousDefaultSmsApp'] as String?,
@@ -175,6 +178,10 @@ abstract class NativeApi {
   Future<List<SpamEntry>> listSpam();
   Future<void> removeSpam(int id, {bool allowSender = false});
   Future<ExportResult> exportSpam();
+
+  /// Allow-lists [sender] and drops its texts that were waiting to be deleted.
+  /// Returns how many texts were kept.
+  Future<int> allowSender(String sender);
   Future<FilterSettings> getSettings();
   Future<void> updateSettings({
     bool? liveFilter,
@@ -250,6 +257,10 @@ class MethodChannelNativeApi implements NativeApi {
   @override
   Future<void> removeSpam(int id, {bool allowSender = false}) => _channel
       .invokeMethod('removeSpam', {'id': id, 'allowSender': allowSender});
+
+  @override
+  Future<int> allowSender(String sender) async =>
+      await _channel.invokeMethod<int>('allowSender', {'sender': sender}) ?? 0;
 
   @override
   Future<ExportResult> exportSpam() async {

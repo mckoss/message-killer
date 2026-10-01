@@ -4,6 +4,7 @@ class FakeNativeApi implements NativeApi {
   FakeNativeApi({
     this.smsPermission = true,
     this.notificationAccess = true,
+    this.contactsPermission = true,
     this.isDefaultSmsApp = false,
     int pending = 0,
     List<SpamEntry>? spam,
@@ -12,11 +13,16 @@ class FakeNativeApi implements NativeApi {
            spam ??
            [
              for (var i = 0; i < pending; i++)
-               spamEntry(i + 1, status: SpamStatus.pendingDelete),
+               spamEntry(
+                 i + 1,
+                 status: SpamStatus.pendingDelete,
+                 sender: '8802$i',
+               ),
            ];
 
   bool smsPermission;
   bool notificationAccess;
+  bool contactsPermission;
   bool isDefaultSmsApp;
   int get pending =>
       spam.where((e) => e.status == SpamStatus.pendingDelete).length;
@@ -33,6 +39,7 @@ class FakeNativeApi implements NativeApi {
   Future<AppStatus> getStatus() async => AppStatus(
     smsPermission: smsPermission,
     notificationAccess: notificationAccess,
+    contactsPermission: contactsPermission,
     isDefaultSmsApp: isDefaultSmsApp,
     defaultSmsApp: isDefaultSmsApp ? 'Message Killer' : 'Messages',
     previousDefaultSmsApp: 'Messages',
@@ -55,6 +62,7 @@ class FakeNativeApi implements NativeApi {
   Future<bool> requestPermissions() async {
     calls.add('requestPermissions');
     smsPermission = true;
+    contactsPermission = true;
     return true;
   }
 
@@ -117,6 +125,17 @@ class FakeNativeApi implements NativeApi {
     final entry = spam.firstWhere((e) => e.id == id);
     spam.remove(entry);
     if (allowSender) allowedSenders.add(entry.sender);
+  }
+
+  @override
+  Future<int> allowSender(String sender) async {
+    calls.add('allowSender');
+    if (!allowedSenders.contains(sender)) allowedSenders.add(sender);
+    final before = spam.length;
+    spam.removeWhere(
+      (e) => e.status == SpamStatus.pendingDelete && e.sender == sender,
+    );
+    return before - spam.length;
   }
 
   @override

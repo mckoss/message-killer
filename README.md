@@ -14,8 +14,13 @@ RCS chat keeps working.
   reasons it was flagged. "Not political" removes it and allow-lists the
   sender. **Export** (download icon) saves everything to your Downloads
   folder as JSON and CSV.
-- **Preview:** before any delete, you see exactly which texts will go and can
-  keep any of them.
+- **Preview:** before any delete, you see exactly which texts will go. The
+  shield button on any text **allows that sender** (their texts stay, and are
+  never filtered again).
+- **Contacts are never filtered:** with Contacts access, texts from anyone in
+  your contacts (including synced Google contacts) are never silenced or
+  deleted. Other allowed senders can be viewed and removed under *Filter
+  settings → Allowed senders*.
 
 > **Status:** MVP / prototype. See [`plan.md`](plan.md) for the roadmap and
 > the technical evaluation.
@@ -120,7 +125,8 @@ installing apps from that source.
 
 ### First launch on the phone
 
-1. **Allow access to your texts** (the SMS permission). If the switch is greyed
+1. **Allow access to your texts and contacts** (SMS and Contacts permissions;
+   contacts are never filtered). If the switch is greyed
    out ("Restricted setting"), open *App info → ⋮ → Allow restricted
    settings*, then try again. Sideloaded apps on Android 13+ need this.
 2. **Turn on the live filter:** tap *Open*, choose Message Killer, and allow

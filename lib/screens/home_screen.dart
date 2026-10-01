@@ -89,7 +89,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 padding: const EdgeInsets.all(16),
                 children: [
                   if (status.isDefaultSmsApp) _stillDefaultCard(status),
-                  if (!status.smsPermission || !status.notificationAccess)
+                  if (!status.smsPermission ||
+                      !status.notificationAccess ||
+                      !status.contactsPermission)
                     _setupCard(status),
                   _liveFilterCard(status),
                   _spamFolderCard(status),
@@ -135,6 +137,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               done: status.smsPermission,
               title: 'Allow access to your texts',
               subtitle: 'Needed to find political texts already in your inbox.',
+              action: 'Allow',
+              onPressed: () async {
+                await api.requestPermissions();
+                await _refresh();
+              },
+            ),
+            _SetupStep(
+              done: status.contactsPermission,
+              title: 'Never filter your contacts',
+              subtitle: 'Texts from anyone in your contacts are never silenced or deleted.',
               action: 'Allow',
               onPressed: () async {
                 await api.requestPermissions();

@@ -280,7 +280,8 @@ Flutter UI:
 ### Phase 3 — Spam folder upgrades
 19. Restore an entry back into the inbox (needs the default role, same flow).
 20. Search and filtering. (✅ Export to Downloads as JSON + CSV is done.)
-21. Auto-allow senders that are in your contacts (optional `READ_CONTACTS`).
+21. ✅ Contacts are never filtered (`READ_CONTACTS`); "Allow sender" in the
+    preview; Allowed senders screen to view/remove.
 22. Choose the daily cleanup time. Remind the user to switch back if they're
     still on Message Killer as the default.
 

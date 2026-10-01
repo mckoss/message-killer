@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../native_api.dart';
+import 'allowed_senders_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.api});
@@ -67,16 +68,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   },
                 ),
                 const SizedBox(height: 24),
-                _EditableList(
-                  title: 'Allowed senders',
-                  description:
-                      'Texts from these names or numbers are never filtered.',
-                  hint: 'Name or phone number',
-                  items: settings.allowedSenders,
-                  onChanged: (items) async {
-                    await widget.api.updateSettings(allowedSenders: items);
-                    await _load();
-                  },
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.verified_user_outlined),
+                    title: const Text('Allowed senders'),
+                    subtitle: Text(
+                      'Contacts + ${settings.allowedSenders.length} other '
+                      '${settings.allowedSenders.length == 1 ? 'sender' : 'senders'}',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => AllowedSendersScreen(api: widget.api),
+                        ),
+                      );
+                      await _load();
+                    },
+                  ),
                 ),
                 const SizedBox(height: 24),
                 Text('Test a message', style: theme.textTheme.titleMedium),

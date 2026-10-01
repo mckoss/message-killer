@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../format.dart';
 import '../native_api.dart';
+import 'allow_sender.dart';
 import 'export_action.dart';
 
 class SpamFolderScreen extends StatefulWidget {
@@ -104,32 +105,9 @@ class SpamEntryScreen extends StatelessWidget {
   final NativeApi api;
   final SpamEntry entry;
 
-  Future<void> _notPolitical(BuildContext context) async {
+  Future<void> _allowSender(BuildContext context) async {
     final navigator = Navigator.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Not political?'),
-        content: Text(
-          'This removes it from the Spam folder and adds "${entry.sender}" to your allow list, '
-          'so texts from this sender are never filtered.'
-          '${entry.status == SpamStatus.deleted ? '\n\nIt was already deleted from your inbox; copy the text first if you need it.' : ''}',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Not political'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    await api.removeSpam(entry.id, allowSender: true);
-    navigator.pop(true);
+    if (await confirmAllowSender(context, api, entry)) navigator.pop(true);
   }
 
   @override
@@ -187,9 +165,9 @@ class SpamEntryScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           OutlinedButton.icon(
-            icon: const Icon(Icons.undo),
-            label: const Text('Not political'),
-            onPressed: () => _notPolitical(context),
+            icon: const Icon(Icons.verified_user_outlined),
+            label: const Text('Not political: allow sender'),
+            onPressed: () => _allowSender(context),
           ),
         ],
       ),
