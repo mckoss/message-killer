@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../format.dart';
 import '../native_api.dart';
+import 'export_action.dart';
 
 class SpamFolderScreen extends StatefulWidget {
   const SpamFolderScreen({
@@ -45,7 +46,10 @@ class _SpamFolderScreenState extends State<SpamFolderScreen> {
   Widget build(BuildContext context) {
     final entries = _entries;
     return Scaffold(
-      appBar: AppBar(title: const Text('Spam folder')),
+      appBar: AppBar(
+        title: const Text('Spam folder'),
+        actions: [ExportSpamButton(api: widget.api)],
+      ),
       body: entries == null
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(

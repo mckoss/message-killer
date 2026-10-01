@@ -5,15 +5,21 @@ class FakeNativeApi implements NativeApi {
     this.smsPermission = true,
     this.notificationAccess = true,
     this.isDefaultSmsApp = false,
-    this.pending = 0,
+    int pending = 0,
     List<SpamEntry>? spam,
     this.grantRole = true,
-  }) : spam = spam ?? [];
+  }) : spam =
+           spam ??
+           [
+             for (var i = 0; i < pending; i++)
+               spamEntry(i + 1, status: SpamStatus.pendingDelete),
+           ];
 
   bool smsPermission;
   bool notificationAccess;
   bool isDefaultSmsApp;
-  int pending;
+  int get pending =>
+      spam.where((e) => e.status == SpamStatus.pendingDelete).length;
   bool grantRole;
   bool liveFilter = true;
   bool dailyCleanup = false;
@@ -84,7 +90,22 @@ class FakeNativeApi implements NativeApi {
   Future<DeleteResult> deletePending() async {
     calls.add('deletePending');
     final deleted = pending;
-    pending = 0;
+    spam = [
+      for (final e in spam)
+        e.status == SpamStatus.pendingDelete
+            ? SpamEntry(
+                id: e.id,
+                source: e.source,
+                status: SpamStatus.deleted,
+                sender: e.sender,
+                body: e.body,
+                messageTime: e.messageTime,
+                filedAt: e.filedAt,
+                score: e.score,
+                reasons: e.reasons,
+              )
+            : e,
+    ];
     return DeleteResult(deleted: deleted, failed: 0);
   }
 
@@ -96,6 +117,15 @@ class FakeNativeApi implements NativeApi {
     final entry = spam.firstWhere((e) => e.id == id);
     spam.remove(entry);
     if (allowSender) allowedSenders.add(entry.sender);
+  }
+
+  @override
+  Future<ExportResult> exportSpam() async {
+    calls.add('exportSpam');
+    return ExportResult(
+      count: spam.length,
+      files: const ['spam.json', 'spam.csv'],
+    );
   }
 
   @override

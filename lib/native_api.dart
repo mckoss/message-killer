@@ -154,6 +154,13 @@ class DeleteResult {
   final int failed;
 }
 
+class ExportResult {
+  const ExportResult({required this.count, required this.files});
+
+  final int count;
+  final List<String> files;
+}
+
 /// Everything the UI needs from the Android side. Abstract so tests can fake it.
 abstract class NativeApi {
   Future<AppStatus> getStatus();
@@ -167,6 +174,7 @@ abstract class NativeApi {
   Future<DeleteResult> deletePending();
   Future<List<SpamEntry>> listSpam();
   Future<void> removeSpam(int id, {bool allowSender = false});
+  Future<ExportResult> exportSpam();
   Future<FilterSettings> getSettings();
   Future<void> updateSettings({
     bool? liveFilter,
@@ -242,6 +250,15 @@ class MethodChannelNativeApi implements NativeApi {
   @override
   Future<void> removeSpam(int id, {bool allowSender = false}) => _channel
       .invokeMethod('removeSpam', {'id': id, 'allowSender': allowSender});
+
+  @override
+  Future<ExportResult> exportSpam() async {
+    final m = await _map('exportSpam');
+    return ExportResult(
+      count: (m['count'] as num?)?.toInt() ?? 0,
+      files: ((m['files'] as List?) ?? const []).cast<String>(),
+    );
+  }
 
   @override
   Future<FilterSettings> getSettings() async =>

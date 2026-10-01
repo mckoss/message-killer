@@ -12,7 +12,10 @@ RCS chat keeps working.
   inbox.
 - **Spam folder:** every filtered text is kept for **90 days** along with the
   reasons it was flagged. "Not political" removes it and allow-lists the
-  sender.
+  sender. **Export** (download icon) saves everything to your Downloads
+  folder as JSON and CSV.
+- **Preview:** before any delete, you see exactly which texts will go and can
+  keep any of them.
 
 > **Status:** MVP / prototype. See [`plan.md`](plan.md) for the roadmap and
 > the technical evaluation.

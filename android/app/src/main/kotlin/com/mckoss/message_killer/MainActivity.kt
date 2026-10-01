@@ -73,6 +73,10 @@ class MainActivity : FlutterActivity() {
                 mapOf("deleted" to deleted, "failed" to failed)
             }
             "listSpam" -> background(result) { store.list().map { it.toMap() } }
+            "exportSpam" -> background(result) {
+                val export = SpamExporter.export(this)
+                mapOf("count" to export.count, "files" to export.files)
+            }
             "removeSpam" -> background(result) {
                 val id = call.argument<Number>("id")!!.toLong()
                 if (call.argument<Boolean>("allowSender") == true) {

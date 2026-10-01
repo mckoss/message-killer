@@ -260,7 +260,9 @@ Flutter UI:
     entry and allow-lists the sender. Shows the 90-day retention notice.
 13. **Settings:** custom keywords, allowed senders, and a "test a message"
     box.
-14. **Cleanup flow:** confirm → become default SMS app → delete → full-screen
+14. **Cleanup flow:** **preview screen** listing every text that will be
+    deleted (open any of them, "Not political" to keep it, export a backup)
+    → become default SMS app → delete → full-screen
     "switch back to Google Messages" step that opens the Default apps
     settings and checks that the switch happened.
 
@@ -277,7 +279,7 @@ Flutter UI:
 
 ### Phase 3 — Spam folder upgrades
 19. Restore an entry back into the inbox (needs the default role, same flow).
-20. Search, filtering, and JSON/CSV export.
+20. Search and filtering. (✅ Export to Downloads as JSON + CSV is done.)
 21. Auto-allow senders that are in your contacts (optional `READ_CONTACTS`).
 22. Choose the daily cleanup time. Remind the user to switch back if they're
     still on Message Killer as the default.

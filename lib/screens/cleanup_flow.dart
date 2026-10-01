@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../format.dart';
 import '../native_api.dart';
+import 'cleanup_preview_screen.dart';
 
 /// Scan → confirm → become default SMS app → delete → switch back.
 Future<void> runCleanup(BuildContext context, NativeApi api) async {
@@ -31,26 +32,9 @@ Future<void> runCleanup(BuildContext context, NativeApi api) async {
   }
   if (!context.mounted) return;
 
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text('Delete ${plural(scan.pending, 'political text')}?'),
-      content: Text(
-        'They stay in Message Killer\'s Spam folder for ${status.retentionDays} days.\n\n'
-        'Android only lets the default SMS app delete messages, so Message Killer will ask '
-        'to become your default SMS app for a moment. Right after, you\'ll switch back to '
-        '${status.messagingAppName}.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Not now'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, true),
-          child: const Text('Delete'),
-        ),
-      ],
+  final confirmed = await navigator.push<bool>(
+    MaterialPageRoute(
+      builder: (_) => CleanupPreviewScreen(api: api, status: status),
     ),
   );
   if (confirmed != true) return;

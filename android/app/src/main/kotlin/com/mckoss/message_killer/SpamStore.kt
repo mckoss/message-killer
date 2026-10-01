@@ -132,7 +132,7 @@ class SpamStore private constructor(context: Context) :
             .use { c -> if (c.moveToFirst()) c.toEntry() else null }
 
     @Synchronized
-    fun list(limit: Int = 1000): List<Entry> =
+    fun list(limit: Int = 100_000): List<Entry> =
         readableDatabase.rawQuery(
             "SELECT * FROM spam ORDER BY message_time DESC LIMIT ?", arrayOf(limit.toString())
         ).use { c -> buildList { while (c.moveToNext()) add(c.toEntry()) } }

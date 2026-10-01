@@ -46,9 +46,10 @@ void main() {
 
     await tester.tap(find.text('Clean up now'));
     await pumpABit(tester);
-    expect(find.text('Delete 3 political texts?'), findsOneWidget);
+    expect(find.text('Review before deleting'), findsOneWidget);
+    expect(find.textContaining('3 texts will be deleted'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete 3'));
     await pumpABit(tester);
     expect(
       api.calls,
@@ -80,7 +81,7 @@ void main() {
 
     await tester.tap(find.text('Clean up now'));
     await pumpABit(tester);
-    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete 2'));
     await pumpABit(tester);
     expect(find.text('Switch manually?'), findsOneWidget);
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
@@ -99,7 +100,7 @@ void main() {
 
     await tester.tap(find.text('Clean up now'));
     await pumpABit(tester);
-    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete 2'));
     await pumpABit(tester);
     await tester.tap(find.widgetWithText(FilledButton, 'Open Default apps'));
     await pumpABit(tester);
@@ -193,5 +194,42 @@ void main() {
     await tester.tap(find.text('Test'));
     await tester.pumpAndSettle();
     expect(find.text('Would be filtered'), findsOneWidget);
+  });
+
+  testWidgets(
+    'preview: cancel deletes nothing; "Not political" removes a text',
+    (tester) async {
+      final api = FakeNativeApi(pending: 2);
+      await tester.pumpWidget(MessageKillerApp(api: api));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Clean up now'));
+      await pumpABit(tester);
+      await tester.tap(find.textContaining('#1').first);
+      await pumpABit(tester);
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Not political'));
+      await pumpABit(tester);
+      await tester.tap(find.widgetWithText(FilledButton, 'Not political'));
+      await pumpABit(tester);
+
+      expect(find.widgetWithText(FilledButton, 'Delete 1'), findsOneWidget);
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
+      await pumpABit(tester);
+      expect(api.calls, isNot(contains('requestDefaultSmsRole')));
+      expect(api.calls, isNot(contains('deletePending')));
+    },
+  );
+
+  testWidgets('spam folder export saves to Downloads', (tester) async {
+    final api = FakeNativeApi(spam: [spamEntry(1)]);
+    await tester.pumpWidget(MessageKillerApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Spam folder'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Export to Downloads'));
+    await tester.pump();
+    await tester.pump();
+    expect(api.calls, contains('exportSpam'));
+    expect(find.textContaining('Saved 1 message to Downloads'), findsOneWidget);
   });
 }
