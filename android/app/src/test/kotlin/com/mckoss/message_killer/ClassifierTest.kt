@@ -27,6 +27,7 @@ class ClassifierTest {
         "It's Sherrod Brown. I'm sending one last Hail Mary request before our c",
         "It's Sherrod, sending a Hail Mary request before our end-of-quarter",
         "Amy Klobuchar here. This is the final end-of-quarter deadline befo",
+        "NOBEL PEACE PRICE ANNOUNCEMENT\n\nRe: Dr. Fauci\n\nPlease read before next week's vote: dswhowin.org/l/uEel5Z\n\nEnd2End",
     )
 
     // Opt-out footer variants seen in a real export.
@@ -63,6 +64,8 @@ class ClassifierTest {
         "Hey, it's Adam. Running 10 minutes late!",
         "Jamie Lee here, your dental appointment is confirmed for Tuesday.",
         "The quarterly report deadline moved to Friday.",
+        "HAPPY BIRTHDAY MOM!! Love you",
+        "FLASH SALE TODAY: 30% off everything. Shop shop.example.com/l/abc123 Reply STOP to opt out",
     )
 
     @Test

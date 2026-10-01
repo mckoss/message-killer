@@ -86,10 +86,13 @@ class Classifier(
             Rule("Voting logistics / get-out-the-vote", 1.0,
                 phrase("""ballots?|(in|leading|trailing)\s+the\s+polls|down[-\s]ballot|(close|tight|key|unsexy|competitive)\s+races?|flip\s+(the|a|this)\s+(house|senate|seat|district)|polling\s+(place|location)s?|early\s+voting|election\s+day|primary\s+election|swing\s+states?|get\s+out\s+the\s+vote|register(ed)?\s+to\s+vote""")),
             Rule("Political office / figure", 1.0,
-                phrase("""congress(wo)?man|congress|presidential|senate|senator|governor|speaker\s+(of\s+the\s+house)?|white\s+house|president\s+\w+|trump|biden|harris|vance|obama|pelosi|schumer|mcconnell|jeffries|aoc|desantis|newsom|pritzker|klobuchar|sherrod\s+brown|warren|sanders|kennedy|rfk""")),
+                phrase("""congress(wo)?man|congress|presidential|senate|senator|governor|speaker\s+(of\s+the\s+house)?|white\s+house|president\s+\w+|trump|biden|harris|vance|obama|pelosi|schumer|mcconnell|jeffries|aoc|desantis|newsom|pritzker|klobuchar|sherrod\s+brown|warren|sanders|kennedy|rfk|fauci""")),
             Rule("Political survey / poll bait", 1.0,
                 phrase("""(official|national|presidential|patriot)\s+(survey|poll)|take\s+the\s+(survey|poll)|your\s+(response|vote)\s+is\s+(needed|required)|membership\s+(has\s+)?expired|you('ve|\s+have)\s+been\s+selected""")),
 
+            // Peer-to-peer texting platforms use tracking links like "site.org/l/uEel5Z".
+            Rule("Campaign-style tracking link", 0.5,
+                Regex("""\b[\w-]+\.(org|com|us|io|co|net)/l/\w{5,}""", RegexOption.IGNORE_CASE)),
             Rule("Link shortener", 0.5,
                 Regex("""\b(bit\.ly|tinyurl\.com|rb\.gy|t\.co|ow\.ly|wnrd\.us|is\.gd|cutt\.ly)/""", RegexOption.IGNORE_CASE)),
 
@@ -99,8 +102,9 @@ class Classifier(
                 Regex("""^\W*((?i:hi|hey|hello)[,!]?\s+)?(?i:it'?s|it’s|this\s+is)\s+\p{Lu}[\p{L}'’-]+(\s+\p{Lu}[\p{L}'’-]+){0,2}\s*[.!,]|^\W*\p{Lu}[\p{L}'’-]+(\s+\p{Lu}[\p{L}'’-]+){1,2}\s+here\b""")),
 
             // "BREAKING:", "UPDATE:", "URGENT:" – alarmist all-caps openers (case-sensitive).
+            // Also any opening line of 3+ all-caps words ("NOBEL PEACE PRIZE ANNOUNCEMENT").
             Rule("Alarmist all-caps opener", 1.0,
-                Regex("""^\W*(BREAKING|UPDATE|URGENT|ALERT|EMERGENCY|FINAL NOTICE|HUGE NEWS|DEVASTATING|IT'S OFFICIAL)\b""")),
+                Regex("""^\W*((BREAKING|UPDATE|URGENT|ALERT|EMERGENCY|FINAL NOTICE|HUGE NEWS|DEVASTATING|IT'S OFFICIAL)\b|(\p{Lu}{2,}[\p{Lu}'’!-]*\s+){2,}\p{Lu}{2,})""")),
 
             // Bulk-marketing opt-out footer – weak on its own.
             Rule("Bulk-text opt-out footer", 1.0,
