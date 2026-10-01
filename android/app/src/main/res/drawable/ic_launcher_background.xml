@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Blue gradient sampled from design/icon-source.jpg. -->
+<!-- Icon background; see design/make_icons.py. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
     <gradient
         android:angle="270"
