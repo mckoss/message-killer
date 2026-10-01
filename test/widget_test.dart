@@ -71,7 +71,9 @@ void main() {
     );
   });
 
-  testWidgets('cleanup does nothing if SMS role is refused', (tester) async {
+  testWidgets('cleanup does nothing if SMS role is refused and user cancels', (
+    tester,
+  ) async {
     final api = FakeNativeApi(pending: 2, grantRole: false);
     await tester.pumpWidget(MessageKillerApp(api: api));
     await tester.pumpAndSettle();
@@ -80,9 +82,33 @@ void main() {
     await pumpABit(tester);
     await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
     await pumpABit(tester);
+    expect(find.text('Switch manually?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await pumpABit(tester);
 
     expect(api.calls, isNot(contains('deletePending')));
     expect(find.textContaining('Nothing deleted'), findsOneWidget);
+  });
+
+  testWidgets('cleanup falls back to switching manually in Default apps', (
+    tester,
+  ) async {
+    final api = FakeNativeApi(pending: 2, grantRole: false);
+    await tester.pumpWidget(MessageKillerApp(api: api));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Clean up now'));
+    await pumpABit(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await pumpABit(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Open Default apps'));
+    await pumpABit(tester);
+    expect(api.isDefaultSmsApp, isTrue);
+
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await pumpABit(tester);
+    expect(api.calls, contains('deletePending'));
+    expect(find.text('Deleted 2 political texts'), findsOneWidget);
   });
 
   testWidgets('cleanup with nothing to delete shows a message', (tester) async {

@@ -1,6 +1,7 @@
 package com.mckoss.message_killer
 
 import android.Manifest
+import android.app.role.RoleManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.provider.Telephony
@@ -12,8 +13,19 @@ object Cleanup {
     fun hasSmsPermission(context: Context) =
         context.checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED
 
-    fun isDefaultSmsApp(context: Context) =
-        Telephony.Sms.getDefaultSmsPackage(context) == context.packageName
+    /**
+     * Asks RoleManager first: right after the role is granted, Telephony's cached
+     * default-SMS package can still report the old app for a moment.
+     */
+    fun isDefaultSmsApp(context: Context): Boolean {
+        val roleManager = context.getSystemService(RoleManager::class.java)
+        if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_SMS) &&
+            roleManager.isRoleHeld(RoleManager.ROLE_SMS)
+        ) {
+            return true
+        }
+        return Telephony.Sms.getDefaultSmsPackage(context) == context.packageName
+    }
 
     /** Classifies the whole inbox and files political texts in the Spam folder as pending deletion. */
     fun scan(context: Context): ScanResult {

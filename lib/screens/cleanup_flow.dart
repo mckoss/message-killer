@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../format.dart';
@@ -53,7 +55,10 @@ Future<void> runCleanup(BuildContext context, NativeApi api) async {
   );
   if (confirmed != true) return;
 
-  final granted = await api.requestDefaultSmsRole();
+  var granted = await api.requestDefaultSmsRole();
+  if (!granted && context.mounted) {
+    granted = await _switchManually(context, api);
+  }
   if (!granted) {
     messenger.showSnackBar(
       const SnackBar(
@@ -72,6 +77,60 @@ Future<void> runCleanup(BuildContext context, NativeApi api) async {
       builder: (_) => SwitchBackScreen(api: api, result: result),
     ),
   );
+}
+
+/// Fallback when the system prompt is refused or never appears: send the user to
+/// Default apps to pick Message Killer by hand, then check when they come back.
+Future<bool> _switchManually(BuildContext context, NativeApi api) async {
+  final open = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Switch manually?'),
+      content: const Text(
+        'Android didn\'t make Message Killer the default SMS app.\n\n'
+        'You can do it yourself: in Default apps, tap "SMS app", choose Message Killer, '
+        'then come back here. You\'ll switch back right after the cleanup.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Open Default apps'),
+        ),
+      ],
+    ),
+  );
+  if (open != true) return false;
+  final resumed = _nextResume();
+  await api.openDefaultAppsSettings();
+  await resumed;
+  return (await api.getStatus()).isDefaultSmsApp;
+}
+
+/// Completes the next time the app returns to the foreground.
+Future<void> _nextResume() {
+  final completer = Completer<void>();
+  late final _ResumeObserver observer;
+  observer = _ResumeObserver(() {
+    WidgetsBinding.instance.removeObserver(observer);
+    completer.complete();
+  });
+  WidgetsBinding.instance.addObserver(observer);
+  return completer.future;
+}
+
+class _ResumeObserver extends WidgetsBindingObserver {
+  _ResumeObserver(this.onResumed);
+
+  final VoidCallback onResumed;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) onResumed();
+  }
 }
 
 /// Shown while Message Killer is the default SMS app; hard to dismiss until the user switches back.

@@ -62,7 +62,9 @@ class FakeNativeApi implements NativeApi {
   @override
   Future<void> openDefaultAppsSettings() async {
     calls.add('openDefaultAppsSettings');
-    isDefaultSmsApp = false;
+    // The user picks whichever app wasn't default: Message Killer before a
+    // manual switch, their messaging app when switching back.
+    isDefaultSmsApp = !isDefaultSmsApp;
   }
 
   @override

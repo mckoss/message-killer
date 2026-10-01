@@ -114,7 +114,7 @@ class MainActivity : FlutterActivity() {
         return mapOf(
             "smsPermission" to Cleanup.hasSmsPermission(this),
             "notificationAccess" to hasNotificationAccess(),
-            "isDefaultSmsApp" to (defaultSms == packageName),
+            "isDefaultSmsApp" to Cleanup.isDefaultSmsApp(this),
             "defaultSmsApp" to appLabel(defaultSms),
             "previousDefaultSmsApp" to appLabel(previous),
             "liveFilter" to settings.liveFilter,
@@ -184,7 +184,7 @@ class MainActivity : FlutterActivity() {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_SMS_ROLE) {
-            pendingRoleResult?.success(Cleanup.isDefaultSmsApp(this))
+            pendingRoleResult?.success(resultCode == RESULT_OK || Cleanup.isDefaultSmsApp(this))
             pendingRoleResult = null
         }
     }
