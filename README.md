@@ -1,44 +1,51 @@
 # Message Killer
 
-Message Killer is a cross-platform (Flutter) mobile app that cleans political
-ads, campaign fundraising texts, and other unsolicited donation requests out of
-your SMS inbox.
+Message Killer is a **companion app** for Google Messages (or Samsung Messages)
+that gets political ads, campaign fundraising texts, and other unsolicited
+donation requests out of your way. It doesn't replace your messaging app, so
+RCS chat keeps working.
 
-It scans the messages on your phone, flags the ones that look like political or
-donation spam, saves them inside the app (so nothing is lost), and then deletes
-them from your phone's messaging app.
+- **Live filter:** when a political text arrives, Message Killer cancels its
+  notification and files a copy in its **Spam folder**.
+- **Cleanup:** on demand, or with a daily reminder, it finds political texts in
+  your SMS inbox, saves them to the Spam folder, and deletes them from the
+  inbox.
+- **Spam folder:** every filtered text is kept for **90 days** along with the
+  reasons it was flagged. "Not political" removes it and allow-lists the
+  sender.
 
-> **Status:** Pre-alpha / planning. The Flutter project has not been generated
-> yet. See [`plan.md`](plan.md) for the implementation order and the technical
-> feasibility evaluation.
+> **Status:** MVP / prototype. See [`plan.md`](plan.md) for the roadmap and
+> the technical evaluation.
 
 ## Platform support
 
-| Platform | Read SMS | Classify | Archive in app | Delete from inbox |
-|----------|----------|----------|----------------|-------------------|
-| Android  | Yes      | Yes      | Yes            | Yes, while Message Killer is temporarily the default SMS app |
-| iOS      | No       | Incoming messages from unknown senders only (filter extension) | No | No (can only route to the Junk folder) |
-
-Android is the primary target. iOS is a later, separate pass with a much smaller
-feature set because of platform restrictions — see `plan.md` for details.
+| Platform | Live filter | Spam folder | Delete from inbox |
+|----------|-------------|-------------|-------------------|
+| Android  | Yes (notification access) | Yes, 90 days | Yes, with one tap per cleanup (Message Killer is briefly the default SMS app) |
+| iOS      | Planned: new texts from unknown senders → Junk only | No | No |
 
 ## How it works (Android)
 
-1. **Scan** – reads the SMS/MMS inbox through Android's SMS content provider
-   (`READ_SMS` permission).
-2. **Classify** – each message is scored by on-device rules: keywords
-   ("chip in", "donate", "paid for by", "ActBlue", "WinRed", "Reply STOP to
-   quit"), sender patterns (short codes and other numbers that aren't in your
-   contacts), and link patterns. Everything runs on the phone; nothing is
-   uploaded.
-3. **Review** – you look over the flagged messages and confirm or un-flag
-   them. You can also add your own keywords and "never flag" senders.
-4. **Archive** – the confirmed messages are copied into the app's own local
-   database and can be searched or exported (JSON/CSV) later.
-5. **Delete** – Android only lets the *default SMS app* delete messages. Message
-   Killer asks you to make it the default SMS app for a moment, deletes the
-   archived messages, and then sends you back to switch your regular app
-   (e.g. Google Messages) back to the default.
+1. **Classify:** on-device rules score each text, looking for fundraising
+   platforms (ActBlue, WinRed), donation asks ("chip in", "2X-matching every
+   gift"), deadline pressure ("end-of-quarter deadline"), politicians
+   introducing themselves ("It's Sherrod Brown."), party, election and
+   office terms, and bulk-text "Reply STOP" footers. A text is filtered at a
+   score of 3. Verification codes are never filtered. You can add your own
+   keywords and allowed senders. Nothing leaves the phone.
+2. **Silence (live filter):** a notification listener reads incoming message
+   notifications. If a text is political, it cancels the notification and
+   files a copy in the Spam folder. Your phone may still buzz once before the
+   notification is removed.
+3. **Clean up:** Android only lets the *default SMS app* delete texts. When
+   you tap **Clean up now** (or the daily reminder):
+   1. Message Killer files the political texts in your inbox.
+   2. It asks to become the default SMS app for a moment.
+   3. It deletes those texts.
+   4. It takes you to *Default apps* to switch back to Google Messages.
+
+   RCS chats can be silenced but not deleted, because Android doesn't give
+   other apps access to them.
 
 ## Requirements
 
@@ -77,8 +84,8 @@ The release page with build notes is
 branch that isn't `main`, go to *Actions → Android prototype APK → Run
 workflow* and pick the branch.
 
-> The link starts working once the first prototype has been built (Phase 1 in
-> `plan.md`). Until then the workflow skips the build.
+> Development branches (`ccr-*`) also publish to this link, so it always has
+> the newest build.
 
 ## Building from source
 
@@ -107,45 +114,46 @@ installing apps from that source.
 
 ### First launch on the phone
 
-1. Grant the **SMS** permission when asked. On Android 13+, if the permission
-   switch is greyed out for a sideloaded app, open
-   *Settings → Apps → Message Killer → ⋮ → Allow restricted settings*, then
-   try again.
-2. (Optional) Grant **Contacts** permission so messages from people you know
-   are never flagged.
-3. Tap **Scan**, review the results, then tap **Archive & Delete**.
-4. When asked, choose Message Killer as the default SMS app. When it finishes,
-   follow the prompt to switch back to your usual messaging app.
+1. **Allow access to your texts** (the SMS permission). If the switch is greyed
+   out ("Restricted setting"), open *App info → ⋮ → Allow restricted
+   settings*, then try again. Sideloaded apps on Android 13+ need this.
+2. **Turn on the live filter:** tap *Open*, choose Message Killer, and allow
+   notification access. This step may also need "Allow restricted settings".
+3. Tap **Clean up now** to clear the backlog. When asked, choose Message Killer
+   as the default SMS app. Then use **Switch back** to make Google Messages
+   the default again.
+4. Optional: turn on **Daily cleanup reminder**.
+5. Use **Filter settings** (top right) to add keywords, allow senders, or paste
+   a text to see whether it would be filtered.
 
-> **Tip:** Back up your messages before the first delete (for example with
-> Google One backup or "SMS Backup & Restore"). Deleted messages can be put back
-> from the Message Killer archive, but a separate backup is cheap insurance.
+> **Tip:** Back up your messages before the first cleanup (for example with
+> Google One backup). Deleted texts are kept in the Spam folder for 90 days,
+> but restoring them to the inbox isn't built yet.
 
-## Project structure (planned)
+## Project structure
 
 ```
 message-killer/
-├── lib/
+├── lib/                             # Flutter UI
 │   ├── main.dart
-│   ├── app/                 # routing, theme
-│   ├── features/
-│   │   ├── scan/            # inbox scan + results UI
-│   │   ├── review/          # confirm / un-flag messages
-│   │   ├── archive/         # saved messages, search, export
-│   │   └── settings/        # rules, allow-list, default-app flow
-│   ├── classifier/          # rule engine + scoring
-│   ├── data/                # local DB (drift/SQLite), repositories
-│   └── platform/            # Dart side of the SMS platform channel
-├── android/
-│   └── app/src/main/kotlin/…/
-│       ├── SmsChannel.kt    # read / delete / restore via ContentResolver
-│       ├── DefaultSmsRole.kt
-│       ├── SmsDeliverReceiver.kt    # required to be a default SMS app
-│       ├── MmsWapPushReceiver.kt    # required to be a default SMS app
-│       ├── HeadlessSmsSendService.kt
-│       └── ComposeSmsActivity.kt
-├── ios/                     # later pass – Message Filter extension
-├── test/                    # unit tests (classifier, repositories)
+│   ├── native_api.dart              # typed wrapper around the platform channel
+│   ├── format.dart
+│   └── screens/
+│       ├── home_screen.dart         # setup, live filter, cleanup, daily toggle
+│       ├── cleanup_flow.dart        # scan → default-app switch → delete → switch back
+│       ├── spam_folder_screen.dart  # 90-day Spam folder + detail
+│       └── settings_screen.dart     # keywords, allow list, "test a message"
+├── android/app/src/main/kotlin/com/mckoss/message_killer/
+│   ├── Classifier.kt                # rules engine (plain JVM, unit-tested)
+│   ├── SpamStore.kt                 # SQLite Spam folder, 90-day retention
+│   ├── MessageNotificationListener.kt  # live filter
+│   ├── SmsInbox.kt / Cleanup.kt     # read, scan, delete
+│   ├── DailyCleanupJob.kt           # daily scan + reminder notification
+│   ├── DefaultSmsComponents.kt      # components Android requires of an SMS app
+│   ├── Notifications.kt / AppSettings.kt
+│   └── MainActivity.kt              # platform channel, permissions, role request
+├── android/app/src/test/…/ClassifierTest.kt
+├── test/                            # Dart unit + widget tests (fake native API)
 ├── README.md
 └── plan.md
 ```
@@ -153,16 +161,18 @@ message-killer/
 ## Development
 
 ```bash
-flutter analyze          # static analysis / lints
-flutter test             # unit + widget tests
-dart format .            # formatting
+flutter analyze                                 # static analysis / lints
+flutter test                                    # Dart unit + widget tests
+(cd android && ./gradlew :app:testDebugUnitTest)  # classifier tests
+dart format .                                   # formatting
 ```
 
 ## Privacy
 
 - All classification happens on the device by default.
-- Archived messages are stored only in the app's private storage on your phone.
-- Any optional cloud/LLM classification will be strictly opt-in and clearly
+- Spam folder copies are stored only in the app's private storage on your
+  phone and are purged after 90 days.
+- Any future cloud/LLM classification will be strictly opt-in and clearly
   labeled.
 
 ## Disclaimer

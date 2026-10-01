@@ -2,12 +2,19 @@
 
 ## 1. Goals
 
-1. Read every SMS/MMS message in the phone's messaging store.
-2. Flag political ads, campaign fundraising, and other unsolicited donation
-   requests.
-3. Save flagged messages inside the app (searchable, exportable, restorable).
-4. Delete them from the system messaging store so they disappear from the
-   user's normal messaging app.
+Message Killer is a **companion app**. It works alongside Google Messages (or
+Samsung Messages) and never replaces it, so RCS chat keeps working.
+
+1. **Filter:** recognize political ads, campaign fundraising, and unsolicited
+   donation requests by their *content* (senders keep switching numbers, so
+   blocking numbers doesn't work).
+2. **Silence:** watch incoming message notifications and cancel the ones that
+   are political, so they don't keep interrupting you.
+3. **Clean up daily (optional):** once a day, scan the SMS inbox, copy the
+   political texts into the app's **Spam folder**, and delete them from the
+   inbox.
+4. **Spam folder:** visible in the app, with the reasons each message was
+   flagged. Entries are kept for **90 days** and then purged automatically.
 5. Android first. iOS is a separate, later pass.
 
 ---
@@ -122,33 +129,45 @@ Android is done.
 ### 2.3 Classification approach
 
 - **v1: rules engine, on-device, explainable.** Each rule adds a weighted
-  score, and the UI shows *why* a message was flagged.
-  - Keywords and phrases: `donate`, `chip in`, `contribute`, `match`,
-    `triple-match`, `deadline`, `paid for by`, `PAC`, `campaign`, `ballot`,
-    `vote`, `poll`, `survey`, `ActBlue`, `WinRed`, `Anedot`,
-    candidate/party names, `Reply STOP to quit`/`STOP2END`.
-  - Sender: short codes (5–6 digits), numbers not in contacts, a sender seen
-    in many different threads.
-  - Links: fundraising domains, link shorteners.
-  - User allow-list and block-list, plus user-added keywords.
-- **v2 (optional):** a small on-device text classifier (TFLite) trained on
-  the messages the user has labeled.
-- **v3 (optional, opt-in only):** cloud LLM classification for borderline
-  messages, with a clear privacy notice.
+  score, each rule counts at most once, and a message is flagged at
+  score ≥ 3. The UI shows *why* a message was flagged.
+  - Fundraising platforms (strong): `ActBlue`, `WinRed`, `Anedot`.
+  - Donation asks: `donate`, `chip in`, `pitch in`, `contribute`, `$X now`,
+    `match` / `triple-match`, `deadline`.
+  - Political terms: `paid for by`, `PAC`, `campaign`, `ballot`, `vote`,
+    `polling`, `Democrat`/`Republican`/`GOP`, party committees
+    (DNC/RNC/DCCC/NRCC/…), offices (Congress, Senate), well-known names.
+  - Marketing signatures: `Reply STOP to quit`, `STOP2END`, `txt STOP`.
+    These are weak signals on their own.
+  - Peer-to-peer style: the message opens with a politician introducing
+    themselves ("It's Sherrod Brown.", "Amy Klobuchar here."), alarmist
+    openers ("UPDATE:", "BREAKING:"), "Hail Mary request",
+    "end-of-quarter" / "legally required deadline", "2X-matching every
+    gift". These came from real texts and are covered by unit tests.
+  - Sender: short codes (5–6 digits) add a small amount. Most of these texts
+    come from ordinary 10-digit numbers, though, so content is what counts.
+  - **Safety:** one-time codes / verification messages get a large negative
+    score so they are never hidden.
+  - User **custom keywords** (flag on their own) and an **allow-list** of
+    senders (never flagged).
+- **Where it runs:** the notification listener and the daily cleanup have to
+  work when the Flutter UI isn't running, so the classifier lives in
+  **Kotlin** (`Classifier.kt`, plain JVM code with unit tests). Flutter calls
+  it over the platform channel, for example for the "test a message" box.
+  The iOS pass would port the same rules.
+- **Later (optional):** an on-device ML model trained on the user's
+  corrections, and opt-in cloud/LLM classification for borderline messages.
 
 ### 2.4 Proposed stack
 
 | Concern | Choice |
 |---------|--------|
-| UI | Flutter (Material 3) |
-| State management | Riverpod |
-| Local storage | drift (SQLite) for the archive, rules, and scan history |
-| Native bridge | Our own Kotlin `MethodChannel` (`SmsChannel`). Existing pub packages (`telephony`, etc.) are unmaintained and do not cover delete or the default-app role. |
-| Permissions | `permission_handler` for runtime permissions; native code for `RoleManager` |
-| Export | JSON + CSV through `share_plus` |
+| UI | Flutter (Material 3), plain `StatefulWidget`s plus one service class for the MVP |
+| Native core | Kotlin: classifier, Spam folder store, notification listener, inbox read/delete, default-SMS-role handling, daily worker |
+| Storage | Native SQLite (`SQLiteOpenHelper`), so background components can write to it without Flutter running. Flutter reads it over the channel. |
+| Background | `WorkManager` periodic job (24 h) |
+| Native bridge | One `MethodChannel` (`message_killer/native`) |
 | Min Android | API 29 (Android 10) for `RoleManager`; target the latest SDK |
-
----
 
 ### 2.5 Why not a full replacement SMS app?
 
@@ -165,138 +184,141 @@ If this changes, the fastest path is forking Fossify Messages (Kotlin,
 GPL-3.0) and adding our classifier, rather than writing a Flutter SMS
 client from scratch.
 
+### 2.6 Limits to know about
+
+1. **Silencing happens just after the notification appears.** Android
+   tells notification listeners about a notification *after* it is posted,
+   so the phone may start its sound or vibration before Message Killer
+   cancels it. The notification disappears almost immediately, but it may
+   still buzz once.
+   *Possible fix later ("quiet mode"):* set Google Messages' notifications to
+   silent, and have Message Killer post its own alerting notification for
+   messages that are **not** political.
+2. **The daily cleanup can't delete without a tap.** Deleting requires
+   briefly becoming the default SMS app, and Android always asks the user to
+   confirm that. So the daily job finds political texts on its own, copies
+   them into the Spam folder, and posts a notification ("12 political texts
+   ready to delete"). One tap runs the delete and then guides you back to
+   Google Messages.
+3. **RCS messages** can be *silenced* (their notifications are visible), but
+   they cannot be deleted, because they aren't in Android's SMS store. Their
+   copies still go into the Spam folder.
+
+---
+
 ## 3. Implementation order
 
-Each phase ends with something that runs on a real Android phone.
+### Phase 0 — Scaffold and pipeline ✅ (with the MVP)
+1. Flutter project (`com.mckoss.message_killer`), lints, unit tests.
+2. **Phone download pipeline:** `.github/workflows/android-prototype.yml`
+   runs analysis and tests, builds the APK, and publishes it to the rolling
+   `prototype` release at
+   `releases/download/prototype/message-killer.apk`.
+3. **Stable signing:** `android/app/build.gradle.kts` loads
+   `android/key.properties` when it exists and falls back to debug signing
+   otherwise. To make each new prototype install as an *update* (keeping the
+   Spam folder), create a keystore once and add the repo secrets
+   `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+   `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`.
 
-### Phase 0 — Scaffold and de-risk (do first)
-1. `flutter create --org com.mckoss --platforms android,ios message_killer`
-   at the repo root. Set up lints (`flutter_lints`/`very_good_analysis`) and
-   CI (`flutter analyze`, `flutter test`).
-   - **Phone download pipeline:** `.github/workflows/android-prototype.yml`
-     is already in place. It builds the APK on every push to `main` and
-     publishes it to the rolling `prototype` release at
-     `releases/download/prototype/message-killer.apk`.
-   - **Stable signing:** change `android/app/build.gradle(.kts)` to load
-     `android/key.properties` when it exists and fall back to debug signing
-     when it doesn't. Create a keystore once with `keytool`, then add the
-     repo secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
-     `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`. This lets each new
-     prototype install as an update. Without it, every CI build gets a
-     different debug key and the old app has to be uninstalled first, which
-     also wipes its archive. Add `key.properties` and `*.jks` to
-     `.gitignore`.
-2. **Spike: deletion round-trip on a real device.** Use a throwaway Kotlin
-   activity to: request `ROLE_SMS` → delete one test SMS → hand the role back
-   to Google Messages → confirm the message is still gone after Messages
-   re-syncs. Repeat with Samsung Messages if a Samsung device is available.
-   *If this fails, change the plan before building any UI.*
+### Phase 1 — MVP ✅ (built; needs validation on a real phone)
+The Kotlin code is type-checked and the classifier and UI have tests. Device
+behavior is still unverified (see Phase 2).
+Native (Kotlin):
+4. `Classifier` — rules engine from §2.3, plus custom keywords and an
+   allow-list. JVM unit tests.
+5. `SpamStore` — SQLite Spam folder. Each entry has a source (`notification`
+   or `sms`), a status (`silenced`, `pending_delete`, `deleted`), the sender,
+   the text, the score, the reasons, and timestamps. Entries older than **90
+   days** are purged at app start and on every daily run. A silenced
+   notification and the matching inbox SMS are merged into one entry.
+6. `MessageNotificationListener` — listens to the messaging app's
+   notifications, reads the individual messages from `MessagingStyle`, and
+   classifies them. If every new message in a notification is political, it
+   **cancels the notification** (and the leftover group summary) and records
+   the messages in the Spam folder.
+7. `SmsInbox` — reads `content://sms/inbox` and deletes by id.
+8. Default-SMS-app components required by Android (`SmsDeliverReceiver`,
+   `MmsWapPushReceiver`, `HeadlessSmsSendService`, `ComposeSmsActivity`).
+   While Message Killer briefly holds the role, an incoming SMS is either
+   written to the inbox with a notification or, if it is political, filed
+   straight into the Spam folder.
+9. `DailyCleanupWorker` (WorkManager, every 24 h, optional) — scans the
+   inbox, files new political texts as `pending_delete`, purges old entries,
+   and posts a "N political texts ready to delete" notification.
+10. Platform channel for the UI: status, permissions, scan, Spam folder
+    list/remove, cleanup (role request → delete → back to Messages),
+    settings, and classify-text.
 
-### Phase 1 — Read-only scanner
-3. Kotlin `SmsChannel.readMessages(since, limit)` → paged list of
-   `{id, threadId, address, body, date, type, read}`. Start with SMS only.
-4. Runtime permission flow, including onboarding for "Allow restricted
-   settings".
-5. Inbox list screen that shows raw messages, grouped by sender.
+Flutter UI:
+11. **Home:** setup checklist (SMS permission, notification access, "allow
+    restricted settings" hint), live-filter status, counts, a **Clean up
+    now** button, and the daily cleanup toggle.
+12. **Spam folder:** list with sender, time, snippet, and status. Tapping an
+    entry shows the full text and the reasons. "Not political" removes the
+    entry and allow-lists the sender. Shows the 90-day retention notice.
+13. **Settings:** custom keywords, allowed senders, and a "test a message"
+    box.
+14. **Cleanup flow:** confirm → become default SMS app → delete → full-screen
+    "switch back to Google Messages" step that opens the Default apps
+    settings and checks that the switch happened.
 
-### Phase 2 — Classifier
-6. Pure-Dart rules engine with weighted rules, a threshold, and
-   "reasons" output. Unit-test it against a fixture set of real political
-   and donation texts as well as normal texts.
-7. Scan results screen showing flagged messages with their scores and
-   reasons, plus confirm / un-flag actions.
-8. Settings for custom keywords, the allow-list (senders/contacts), and the
-   sensitivity threshold. Optionally read contacts to auto-allow known
-   senders.
+### Phase 2 — Validate on a real phone
+15. Confirm deleted texts stay gone after Google Messages becomes the
+    default again and re-syncs.
+16. Confirm that briefly switching the default app doesn't disturb RCS
+    registration.
+17. Measure how the notification cancel feels in practice (§2.6.1). Tune
+    which messaging-app packages are watched (Google Messages, Samsung
+    Messages, the current default).
+18. Tune classifier weights against real political texts. Collect false
+    positives and false negatives as test fixtures.
 
-### Phase 3 — Live mode (silence new political texts)
-Moved up from "optional" because new political texts keep arriving, and
-blocking numbers doesn't stop them since senders keep switching numbers.
-Doesn't need the default-SMS-app role.
-9. `NotificationListenerService` (Kotlin) that sees new Google Messages /
-   Samsung Messages notifications, runs the classifier, and **cancels the
-   notification** for flagged messages, so your phone doesn't buzz.
-   Notification-access onboarding (another "restricted settings" step for
-   sideloaded apps).
-10. Pass the classifier rules to the native side (JSON), or run the Dart
-    classifier in a background isolate / headless engine. Has to keep up
-    with each incoming text without noticeable delay.
-11. "Silenced today" list in the app: message, reasons, "this wasn't
-    political" (un-flag, add to allow-list), with a running count. Silenced
-    messages are queued for the next cleanup.
-12. Keep it running reliably: battery-optimization exemption prompt, and
-    rebind after reboot or app update.
+### Phase 3 — Spam folder upgrades
+19. Restore an entry back into the inbox (needs the default role, same flow).
+20. Search, filtering, and JSON/CSV export.
+21. Auto-allow senders that are in your contacts (optional `READ_CONTACTS`).
+22. Choose the daily cleanup time. Remind the user to switch back if they're
+    still on Message Killer as the default.
 
-### Phase 4 — Archive
-13. drift schema with tables `archived_messages`, `rules`, `scan_runs`, and
-    `allow_list`.
-14. "Archive" action that copies confirmed messages into the DB and checks
-    that each write succeeded.
-15. Archive browser with search, filtering by sender and date, and JSON/CSV
-    export.
+### Phase 4 — Hardening
+23. MMS: read, classify, and delete MMS text parts. Handle MMS that arrives
+    while we hold the role.
+24. Large inboxes (10k+ messages): batching and progress.
+25. Dual SIM. App killed mid-delete (resume from a journal).
+26. Battery-optimization exemption prompt. Make sure the listener rebinds
+    after reboot or an app update.
 
-### Phase 5 — Delete (default SMS app flow)
-16. Add the required default-SMS-app components to the manifest:
-    `SmsDeliverReceiver`, `MmsWapPushReceiver`, `HeadlessSmsSendService`, and
-    `ComposeSmsActivity`.
-    - `SmsDeliverReceiver` **must** write incoming SMS to the provider and
-      post a notification.
-17. `DefaultSmsRole.request()` / `isDefault()` exposed over the channel.
-18. `SmsChannel.deleteMessages(ids)`. It only runs when the app is the
-    default, only deletes messages that are already archived, and returns
-    per-message results.
-19. Guided UX: "Archive & Delete" → role prompt → delete with progress →
-    "Restore your messaging app" screen that opens the role picker or default
-    apps settings and does not let the user dismiss it until the default app
-    has changed.
-    - Check whether switching the default app away from Google Messages for
-      a few seconds affects RCS registration. Phase 0 spike.
-20. **Restore from archive**: write archived messages back into the provider
-    (also requires being the default app). This is the safety net.
+### Phase 5 — Optional enhancements
+27. "Quiet mode" (§2.6.1): Google Messages notifications set to silent;
+    Message Killer re-alerts only for messages that aren't political.
+28. On-device ML classifier trained on the user's corrections.
+29. Opt-in cloud/LLM classification for borderline messages.
+30. Shareable rule packs (e.g. updated candidate/PAC names each election
+    cycle).
 
-### Phase 6 — Polish and hardening
-21. MMS support (read text parts and images, delete MMS).
-22. Batching and performance for large inboxes (10k+ messages).
-23. Edge cases: dual SIM, messages that arrive during the delete window,
-    the user cancelling the role dialog, app killed mid-delete (resume from
-    a journal).
-24. Accessibility, dark mode, app icon, release signing config, and
-    versioned APKs (`v*` tags) published to GitHub Releases alongside the
-    rolling `prototype` build.
-
-### Phase 7 — Optional enhancements
-25. Scheduled reminders ("You have 37 new political texts — clean up?").
-26. On-device ML classifier trained on the user's labels.
-27. Opt-in cloud/LLM classification for borderline messages.
-28. Shareable community rule packs (e.g. updated candidate/PAC names each
-    election cycle).
-
-### Phase 8 — iOS (separate pass)
-29. Swift `ILMessageFilterExtension` target that uses the same rule set
-    (rules serialized to JSON in an App Group container).
-30. Flutter iOS UI limited to rule editing, setup instructions, and a test
-    box ("paste a message to see if it would be filtered").
-31. No scan, archive, or delete on iOS. Document this clearly in the app and
-    the README.
+### Phase 6 — iOS (separate pass)
+31. Swift `ILMessageFilterExtension` that uses the same rules to send new
+    political texts from unknown senders to the Junk folder.
+32. Flutter iOS UI limited to rule editing and setup instructions. No
+    silencing, Spam folder, or delete on iOS.
 
 ---
 
 ## 4. Testing strategy
 
-- **Unit:** classifier rules and scoring, repository/DB logic (drift
-  in-memory).
-- **Widget:** scan results, review, and archive screens with fake channel
-  data.
-- **Device:** the deletion round-trip, the default-app handoff, and
-  receiving an SMS while we are the default app, run manually on at least a
-  Pixel (Google Messages) and a Samsung device (Samsung Messages).
+- **Unit (Kotlin, JVM):** classifier rules and scoring against a fixture set
+  of political and normal texts.
+- **Unit/widget (Dart):** UI screens with a fake platform channel.
+- **CI:** `flutter analyze`, `flutter test`, Gradle unit tests, and an APK
+  build on every push.
+- **Device:** notification silencing, the cleanup round-trip, and receiving
+  an SMS while we hold the default role, run manually on a Pixel (Google
+  Messages) and, if possible, a Samsung device.
 - **Emulator:** use `adb emu sms send <number> <text>` to seed test
   messages.
 
 ## 5. Open questions
 
-- Should Message Killer also block or report senders (e.g. forward to 7726)
-  in addition to deleting?
-- Retention policy for the archive: keep forever, or auto-purge after N
-  months?
+- Should Message Killer also report senders (e.g. forward to 7726)?
 - Is Google Play distribution a goal, or will it stay sideload-only?

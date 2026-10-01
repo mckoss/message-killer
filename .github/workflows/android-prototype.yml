@@ -6,7 +6,7 @@ name: Android prototype APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'ccr-*'] # ccr-* = development branches, so prototypes can be tested before merging
   workflow_dispatch: # "Run workflow" button: build any branch on demand
 
 permissions:
@@ -78,6 +78,11 @@ jobs:
         run: |
           flutter build apk --release --build-number=${{ github.run_number }}
           cp build/app/outputs/flutter-apk/app-release.apk message-killer.apk
+
+      - name: Native unit tests (classifier)
+        if: steps.project.outputs.exists == 'true'
+        working-directory: android
+        run: ./gradlew :app:testReleaseUnitTest --no-daemon
 
       - name: Publish "prototype" release
         if: steps.project.outputs.exists == 'true'
