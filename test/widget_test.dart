@@ -410,5 +410,7 @@ void main() {
       containsAllInOrder(['requestDefaultSmsRole', 'restore:7,8']),
     );
     expect(find.text('Restored 2 texts to your inbox'), findsOneWidget);
+    // "Always allow 692632" is on by default.
+    expect(api.allowedSenders, ['692632']);
   });
 }

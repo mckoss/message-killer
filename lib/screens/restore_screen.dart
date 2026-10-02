@@ -18,6 +18,9 @@ class RestoreScreen extends StatefulWidget {
 class _RestoreScreenState extends State<RestoreScreen> {
   List<SpamEntry>? _entries;
 
+  /// Also put the senders on the allow list (e.g. your bank).
+  bool _allowSenders = true;
+
   @override
   void initState() {
     super.initState();
@@ -75,21 +78,63 @@ class _RestoreScreenState extends State<RestoreScreen> {
           : SafeArea(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: FilledButton.icon(
-                  icon: const Icon(Icons.restore),
-                  label: Text('Restore ${entries.length}'),
-                  onPressed: () async {
-                    final navigator = Navigator.of(context);
-                    final restored = await runRestore(
-                      context,
-                      widget.api,
-                      entries.map((e) => e.id).toList(),
-                    );
-                    if (restored > 0) navigator.pop();
-                  },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _allowSenders,
+                      onChanged: (v) =>
+                          setState(() => _allowSenders = v ?? true),
+                      title: Text(
+                        'Always allow ${_senders(entries)}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: const Text('Never filter these senders again'),
+                    ),
+                    FilledButton.icon(
+                      icon: const Icon(Icons.restore),
+                      label: Text('Restore ${entries.length}'),
+                      onPressed: () async {
+                        final navigator = Navigator.of(context);
+                        final restored = await runRestore(
+                          context,
+                          widget.api,
+                          entries.map((e) => e.id).toList(),
+                          afterRestore: (_) async {
+                            if (!_allowSenders) return;
+                            for (final sender
+                                in entries.map((e) => e.sender).toSet()) {
+                              if (sender.isNotEmpty) {
+                                await widget.api.allowSender(sender);
+                              }
+                            }
+                          },
+                        );
+                        if (restored > 0) navigator.pop();
+                      },
+                    ),
+                  ],
                 ),
               ),
             ),
     );
   }
+}
+
+/// "692632" / "692632 and 90999" / "3 senders".
+String _senders(List<SpamEntry> entries) {
+  final senders = entries
+      .map((e) => e.sender)
+      .where((s) => s.isNotEmpty)
+      .toSet()
+      .toList();
+  return switch (senders.length) {
+    0 => 'these senders',
+    1 => senders.first,
+    2 => '${senders[0]} and ${senders[1]}',
+    _ => '${senders.length} senders',
+  };
 }

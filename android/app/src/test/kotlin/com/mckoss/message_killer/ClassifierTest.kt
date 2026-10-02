@@ -85,7 +85,24 @@ class ClassifierTest {
         "BofA: Credit card charge \$515.00, credit card - 4111, ACTBLUE  ALEXANDRIA.OC, 06/03/26.  STOP to end account texts",
         "BofA: (Declined) Credit card charge \$1,524.29, credit card - 4111, Quality Plumbing, 04/02/26.  STOP to end account texts",
         "Chase: A \$25.00 debit card transaction to WINRED was made on your account ending in 1234.",
+        "ActBlue: Your contribution of \$25.00 to Smith for Congress was processed. View your receipt: actblue.com/r/xxxx",
+        "Thank you! Here is your donation receipt from ActBlue for \$10.00. Reply STOP to opt out",
     )
+
+    // Service notices with a brand prefix + opt-out footer are not promotions.
+    private val serviceNotices = listOf(
+        "BofA: Financial centers in your area may be temporarily closed or hours may be modified. For latest info, visit our website. TextSTOPtoStop",
+        "Reminder: your dentist appointment is Tuesday at 3pm. Reply C to confirm or STOP to opt out",
+        "CVS Pharmacy: Store hours have changed for the holiday. Reply STOP to opt out",
+    )
+
+    @Test
+    fun serviceNoticesAreNotPromotions() {
+        for (text in serviceNotices) {
+            val r = classifier.classify(text, sender = "692632")
+            assertFalse("score=${r.score}, ${r.category} ${r.reasons}: $text", r.isSpam)
+        }
+    }
 
     @Test
     fun neverFiltersTransactionalNotices() {

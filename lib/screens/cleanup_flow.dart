@@ -129,11 +129,14 @@ Future<bool> _becomeDefault(BuildContext context, NativeApi api) async {
 
 /// Puts deleted texts back in the inbox: briefly become the default SMS app,
 /// write them back, then switch back. Returns how many were restored.
+/// [afterRestore] runs right after the texts are written back, before the
+/// switch-back screen (e.g. to allow-list their senders).
 Future<int> runRestore(
   BuildContext context,
   NativeApi api,
-  List<int> ids,
-) async {
+  List<int> ids, {
+  Future<void> Function(int restored)? afterRestore,
+}) async {
   final messenger = ScaffoldMessenger.of(context);
   final navigator = Navigator.of(context);
   if (ids.isEmpty) return 0;
@@ -154,6 +157,7 @@ Future<int> runRestore(
     'Restoring',
     () => api.restore(ids),
   );
+  if (restored > 0) await afterRestore?.call(restored);
   await navigator.push(
     MaterialPageRoute<void>(
       fullscreenDialog: true,

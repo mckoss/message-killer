@@ -223,7 +223,9 @@ class Classifier(
 
             // --------------------------------------------------------- commercial
             // "CVS ExtraCare: …", "birddogs: …"
-            Rule("Brand-name prefix", 1.0, Regex("""^\s*[\p{L}\p{N}][\p{L}\p{N}&'’. -]{1,30}:\s"""), C),
+            // Weak: banks and pharmacies prefix service notices the same way, so a
+            // promotion also needs real marketing language.
+            Rule("Brand-name prefix", 0.5, Regex("""^\s*[\p{L}\p{N}][\p{L}\p{N}&'’. -]{1,30}:\s"""), C),
             Rule("Discount or sale offer", 2.0,
                 phrase("""\d{1,2}%\s+off|\$\d+(\.\d\d)?\s+off|bogo|buy\s+one|free\s+shipping|promo\s+code|coupons?|use\s+code\s+\w+|(flash|clearance|semi-annual|black\s+friday|cyber\s+monday|end\s+of\s+season)\s+sale|on\s+sale|send\s+to\s+card"""), C),
             Rule("Shopping urgency", 1.0,
@@ -236,7 +238,7 @@ class Classifier(
             // Transactional notices (e.g. pharmacy pickups) are never treated as
             // promotions or political, even from a flagged sender.
             Rule("Looks like a transactional notice (prescription, order, appointment)", -4.0,
-                phrase("""prescriptions?|rx|refills?|ready\s+for\s+pick\s*-?\s*up|pharmacy\s+(order|hours)|your\s+(next\s+)?appointment|appointment\s+(reminder|confirmed|confirmation|is\s+(on|at|scheduled|tomorrow|today)|tomorrow|today)|reminder\s+of\s+your\s+appointment|order\s+(#|number|has\s+shipped|is\s+on\s+its\s+way)|has\s+shipped|out\s+for\s+delivery|confirmation\s+(number|code)"""), P + C),
+                phrase("""prescriptions?|rx|refills?|ready\s+for\s+pick\s*-?\s*up|pharmacy\s+(order|hours)|your\s+(\w+\s+){0,2}appointment|appointment\s+(reminder|confirmed|confirmation|is\s+(on|at|scheduled|tomorrow|today)|tomorrow|today)|reminder\s+of\s+your\s+appointment|order\s+(#|number|has\s+shipped|is\s+on\s+its\s+way)|has\s+shipped|out\s+for\s+delivery|confirmation\s+(number|code)"""), P + C),
 
             // ----------------------------------------------------- phishing / scams
             Rule("Account problem bait", 2.0,
@@ -259,14 +261,21 @@ class Classifier(
             // ------------------------------------------------------------- shared
             Rule("Link shortener", 0.5,
                 Regex("""\b(bit\.ly|tinyurl\.com|rb\.gy|t\.co|ow\.ly|wnrd\.us|is\.gd|cutt\.ly)/""", RegexOption.IGNORE_CASE), ALL),
-            // Bulk-marketing opt-out footer – weak on its own.
-            Rule("Bulk-text opt-out footer", 1.0, Regex(FOOTER, RegexOption.IGNORE_CASE), P + C),
+            // Mass-texting opt-out footer ("Stop2End"). A strong sign of bulk texts, but
+            // banks and pharmacies use it too, so it can't decide alone; the safety
+            // rules below cover those.
+            Rule("Bulk-text opt-out footer", 1.5, Regex(FOOTER, RegexOption.IGNORE_CASE), P + C),
 
             // Safety valve: bank / card alerts are never political or promotional, even
             // when the merchant is ActBlue ("Credit card charge $515.00 … ACTBLUE").
             // Phishing is left alone: scams imitate these.
             Rule("Looks like a bank or card alert (never hidden)", -10.0,
                 phrase("""(credit|debit)\s+card\s+(charge|purchase|transaction|payment)|card\s+(ending|-)\s*(in\s+)?\d{4}|account\s+ending\s+(in\s+)?\d{4}|(charge|purchase|transaction|withdrawal|deposit)\s+(of|for)\s+\$\d|\(declined\)|end\s+account\s+texts"""), P + C),
+
+            // Safety valve: receipts for your own donations ("Thank you for your
+            // contribution of $25 … receipt") aren't fundraising.
+            Rule("Looks like a donation receipt (never hidden)", -10.0,
+                phrase("""(contribution|donation)\s+receipt|receipt\s+for\s+your\s+(contribution|donation)|your\s+(contribution|donation)\s+of\s+\$\d[\d,.]*\s+(to|for)\s+.{1,60}(was|has\s+been)\s+(received|processed|successful)"""), P + C),
 
             // Safety valve: never hide one-time codes or verification messages.
             Rule("Looks like a verification code (never hidden)", -10.0,
