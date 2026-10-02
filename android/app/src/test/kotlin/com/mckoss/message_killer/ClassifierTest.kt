@@ -108,6 +108,14 @@ class ClassifierTest {
     }
 
     @Test
+    fun fingerprintChangesOnlyWhenFilteringChanges() {
+        val base = Classifier.fingerprint(listOf("Jane Doe"), listOf("+1 (555) 123-4567"))
+        assertEquals(base, Classifier.fingerprint(listOf(" jane doe "), listOf("5551234567")))
+        assertFalse(base == Classifier.fingerprint(listOf("Jane Doe", "Bob"), listOf("5551234567")))
+        assertFalse(base == Classifier.fingerprint(listOf("Jane Doe"), emptyList()))
+    }
+
+    @Test
     fun everythingFromATaintedSenderIsFlagged() {
         val c = Classifier(taintedSenders = listOf("+15042944686"))
         val result = c.classify("Thanks for being with us this year!", sender = "(504) 294-4686")

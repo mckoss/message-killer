@@ -30,6 +30,18 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_PREVIOUS_DEFAULT, null)
         set(value) = prefs.edit().putString(KEY_PREVIOUS_DEFAULT, value).apply()
 
+    /** Start time of the last completed scan (ms); 0 = never scanned. */
+    var lastScanAt: Long
+        get() = prefs.getLong(KEY_LAST_SCAN_AT, 0)
+        set(value) = prefs.edit().putLong(KEY_LAST_SCAN_AT, value).apply()
+
+    /** [Classifier.fingerprint] of the rules the last scan used. */
+    var lastScanFingerprint: String?
+        get() = prefs.getString(KEY_LAST_SCAN_FINGERPRINT, null)
+        set(value) = prefs.edit().putString(KEY_LAST_SCAN_FINGERPRINT, value).apply()
+
+    fun scanFingerprint() = Classifier.fingerprint(customKeywords, allowedSenders)
+
     fun classifier(taintedSenders: Collection<String> = SpamStore.get(appContext).taintedSenders()) =
         Classifier(customKeywords, allowedSenders, taintedSenders)
 
@@ -62,5 +74,7 @@ class AppSettings(context: Context) {
         private const val KEY_CUSTOM_KEYWORDS = "custom_keywords"
         private const val KEY_ALLOWED_SENDERS = "allowed_senders"
         private const val KEY_PREVIOUS_DEFAULT = "previous_default_sms"
+        private const val KEY_LAST_SCAN_AT = "last_scan_at"
+        private const val KEY_LAST_SCAN_FINGERPRINT = "last_scan_fingerprint"
     }
 }

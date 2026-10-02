@@ -67,8 +67,13 @@ class MainActivity : FlutterActivity() {
             )
             "requestDefaultSmsRole" -> requestDefaultSmsRole(result)
             "scanInbox" -> background(result) {
-                val scan = Cleanup.scan(this)
-                mapOf("scanned" to scan.scanned, "newlyFiled" to scan.newlyFiled, "pending" to scan.pending)
+                val scan = Cleanup.scan(this, forceFull = call.argument<Boolean>("full") == true)
+                val stats = Cleanup.lastStats
+                mapOf(
+                    "scanned" to scan.scanned, "newlyFiled" to scan.newlyFiled, "pending" to scan.pending,
+                    "texts" to (stats?.texts ?: 0), "pictureMessages" to (stats?.pictureMessages ?: 0),
+                    "full" to (stats?.full ?: true),
+                )
             }
             "deletePending" -> background(result) {
                 val (deleted, failed) = Cleanup.deletePending(this)

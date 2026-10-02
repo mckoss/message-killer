@@ -7,7 +7,12 @@ import '../native_api.dart';
 import 'cleanup_preview_screen.dart';
 
 /// Scan → confirm → become default SMS app → delete → switch back.
-Future<void> runCleanup(BuildContext context, NativeApi api) async {
+/// [full]: re-check every message instead of only those since the last scan.
+Future<void> runCleanup(
+  BuildContext context,
+  NativeApi api, {
+  bool full = false,
+}) async {
   final messenger = ScaffoldMessenger.of(context);
   final navigator = Navigator.of(context);
 
@@ -20,14 +25,15 @@ Future<void> runCleanup(BuildContext context, NativeApi api) async {
   }
 
   if (!context.mounted) return;
-  final scan = await _withProgress(context, api, 'Scanning', api.scanInbox);
+  final scan = await _withProgress(
+    context,
+    api,
+    'Scanning',
+    () => api.scanInbox(full: full),
+  );
   if (scan.pending == 0) {
     messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          'No political texts found in ${plural(scan.scanned, 'message')}.',
-        ),
-      ),
+      SnackBar(content: Text('No political texts to delete. ${scan.summary}.')),
     );
     return;
   }
@@ -35,7 +41,8 @@ Future<void> runCleanup(BuildContext context, NativeApi api) async {
 
   final confirmed = await navigator.push<bool>(
     MaterialPageRoute(
-      builder: (_) => CleanupPreviewScreen(api: api, status: status),
+      builder: (_) =>
+          CleanupPreviewScreen(api: api, status: status, scan: scan),
     ),
   );
   if (confirmed != true) return;

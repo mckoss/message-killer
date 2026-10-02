@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart';
 
+import 'format.dart';
+
 /// Snapshot of permissions, settings and Spam folder counts.
 class AppStatus {
   const AppStatus({
@@ -143,10 +145,27 @@ class ScanResult {
     required this.scanned,
     required this.newlyFiled,
     required this.pending,
+    this.texts = 0,
+    this.pictureMessages = 0,
+    this.full = true,
   });
 
   final int scanned;
   final int newlyFiled;
+  final int texts;
+  final int pictureMessages;
+
+  /// Every message was checked (vs. only ones since the last scan).
+  final bool full;
+
+  /// "Checked 27,412 texts + 2,624 picture messages" (+ "since the last scan").
+  String get summary {
+    final what = pictureMessages > 0
+        ? '${plural(texts, 'text')} + ${plural(pictureMessages, 'picture message')}'
+        : plural(texts, 'text');
+    return 'Checked $what${full ? '' : ' since the last scan'}';
+  }
+
   final int pending;
 }
 
@@ -173,7 +192,9 @@ abstract class NativeApi {
   Future<void> openAppSettings();
   Future<void> openDefaultAppsSettings();
   Future<bool> requestDefaultSmsRole();
-  Future<ScanResult> scanInbox();
+
+  /// [full]: re-check every message, not just ones since the last scan.
+  Future<ScanResult> scanInbox({bool full = false});
 
   /// What the running scan or delete is doing right now (empty when idle).
   Future<String> scanProgress();
@@ -232,12 +253,15 @@ class MethodChannelNativeApi implements NativeApi {
       await _channel.invokeMethod<bool>('requestDefaultSmsRole') ?? false;
 
   @override
-  Future<ScanResult> scanInbox() async {
-    final m = await _map('scanInbox');
+  Future<ScanResult> scanInbox({bool full = false}) async {
+    final m = await _map('scanInbox', {'full': full});
     return ScanResult(
       scanned: (m['scanned'] as num?)?.toInt() ?? 0,
       newlyFiled: (m['newlyFiled'] as num?)?.toInt() ?? 0,
       pending: (m['pending'] as num?)?.toInt() ?? 0,
+      texts: (m['texts'] as num?)?.toInt() ?? 0,
+      pictureMessages: (m['pictureMessages'] as num?)?.toInt() ?? 0,
+      full: m['full'] != false,
     );
   }
 

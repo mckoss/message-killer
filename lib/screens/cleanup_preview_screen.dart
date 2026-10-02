@@ -12,10 +12,12 @@ class CleanupPreviewScreen extends StatefulWidget {
     super.key,
     required this.api,
     required this.status,
+    this.scan,
   });
 
   final NativeApi api;
   final AppStatus status;
+  final ScanResult? scan;
 
   @override
   State<CleanupPreviewScreen> createState() => _CleanupPreviewScreenState();
@@ -71,7 +73,8 @@ class _CleanupPreviewScreenState extends State<CleanupPreviewScreen> {
                     child: Text(
                       pending.isEmpty
                           ? 'Nothing left to delete.'
-                          : '${plural(count, 'text')} will be deleted from your inbox. '
+                          : '${widget.scan == null ? '' : '${widget.scan!.summary}. '}'
+                                '${plural(count, 'text')} will be deleted from your inbox. '
                                 'Copies stay in the Spam folder for ${widget.status.retentionDays} days.\n\n'
                                 'Tap a text to see why it was flagged. Tap the shield to always allow a sender '
                                 '(their texts stay in your inbox). '

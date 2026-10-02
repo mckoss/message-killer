@@ -123,7 +123,10 @@ void main() {
     await tester.tap(find.text('Scan now'));
     await tester.pumpAndSettle();
     expect(
-      find.text('No political texts found in 100 messages.'),
+      find.text(
+        'No political texts to delete. '
+        'Checked 90 texts + 10 picture messages since the last scan.',
+      ),
       findsOneWidget,
     );
   });
@@ -282,6 +285,25 @@ void main() {
     expect(api.calls, isNot(contains('exportSpam')));
     expect(
       find.textContaining('Saved 2 messages to Downloads'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('settings: "Rescan all messages" runs a full scan', (
+    tester,
+  ) async {
+    final api = FakeNativeApi();
+    await tester.pumpWidget(MessageKillerApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Filter settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rescan all messages'));
+    await pumpABit(tester);
+    expect(api.calls, contains('fullScan'));
+    expect(
+      find.text(
+        'No political texts to delete. Checked 90 texts + 10 picture messages.',
+      ),
       findsOneWidget,
     );
   });

@@ -48,6 +48,31 @@ class Classifier(
 
     companion object {
         const val THRESHOLD = 3.0
+
+        /**
+         * Bump when scan logic changes in ways the rule list doesn't capture
+         * (e.g. which messages are read, how senders are matched).
+         */
+        const val SCAN_LOGIC_VERSION = 1
+
+        /**
+         * Identifies everything that decides what gets flagged. When it differs
+         * from the last scan's, the next scan re-checks every message instead of
+         * just recent ones. Built-in rules are hashed automatically, so editing
+         * them forces a full rescan without a manual version bump.
+         */
+        fun fingerprint(customKeywords: Collection<String>, allowedSenders: Collection<String>): String {
+            val parts = buildList {
+                add("logic=$SCAN_LOGIC_VERSION")
+                add("threshold=$THRESHOLD")
+                BUILT_IN_RULES.forEach { add("${it.label}|${it.weight}|${it.pattern.pattern}|${it.pattern.options}") }
+                customKeywords.map { it.trim().lowercase() }.sorted().forEach { add("kw=$it") }
+                allowedSenders.map(::normalizeSender).sorted().forEach { add("allow=$it") }
+            }
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+                .digest(parts.joinToString("\n").toByteArray(Charsets.UTF_8))
+            return digest.joinToString("") { "%02x".format(it) }.take(16)
+        }
         const val TAINTED_REASON = "Sender previously sent political texts"
 
         private val SHORT_CODE = Regex("""^\d{5,6}$""")

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../native_api.dart';
 import 'allowed_senders_screen.dart';
+import 'cleanup_flow.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.api});
@@ -85,6 +86,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                       await _load();
                     },
+                  ),
+                ),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.manage_search),
+                    title: const Text('Rescan all messages'),
+                    subtitle: const Text(
+                      'Scans normally check only new texts. A full rescan happens '
+                      'automatically when filter rules change.',
+                    ),
+                    onTap: () => runCleanup(context, widget.api, full: true),
                   ),
                 ),
                 const SizedBox(height: 24),

@@ -32,41 +32,73 @@ object Cleanup {
         return Telephony.Sms.getDefaultSmsPackage(context) == context.packageName
     }
 
-    /** Classifies the whole inbox and files political texts in the Spam folder as pending deletion. */
+    data class ScanStats(val texts: Int, val pictureMessages: Int, val full: Boolean)
+
+    /** Stats of the last scan, for the UI. */
+    @Volatile var lastStats: ScanStats? = null
+
+    /** Re-check this far back on incremental scans, for late-arriving messages. */
+    private val INCREMENTAL_OVERLAP_MS = java.util.concurrent.TimeUnit.DAYS.toMillis(3)
+
+    /**
+     * Files political texts from the inbox in the Spam folder as pending deletion.
+     *
+     * Full scan (every message) the first time, when [forceFull], or when the
+     * rules have changed since the last scan (see [Classifier.fingerprint]);
+     * otherwise only messages from the last few days, plus the whole
+     * conversation of any sender flagged since the last scan.
+     */
     @Synchronized // one scan or delete at a time (UI and daily job)
-    fun scan(context: Context): ScanResult {
+    fun scan(context: Context, forceFull: Boolean = false): ScanResult {
         val store = SpamStore.get(context)
         store.purgeExpired()
         if (!hasSmsPermission(context)) return ScanResult(0, 0, store.pendingSmsIds().size)
         val settings = AppSettings(context)
         val contacts = ContactsChecker(context)
-        // Drop anything waiting for deletion whose sender has since been allowed
-        // or added to contacts.
+        val startedAt = System.currentTimeMillis()
         val start = SystemClock.elapsedRealtime()
         fun lap(step: String) = Log.i("MessageKiller", "scan: $step at ${SystemClock.elapsedRealtime() - start} ms")
 
+        val fingerprint = settings.scanFingerprint()
+        val lastScanAt = settings.lastScanAt
+        val full = forceFull || lastScanAt == 0L || settings.lastScanFingerprint != fingerprint
+        lap(if (full) "full scan" else "incremental since $lastScanAt")
+
+        // Drop anything waiting for deletion whose sender has since been allowed
+        // or added to contacts.
         progress = "Checking your allowed senders…"
         store.removePendingWhere { settings.isAllowed(it.sender) || contacts.isContact(it.sender) }
 
-        progress = "Reading your messages…"
-        val all = SmsInbox.readInbox(context) { progress = it }
-        lap("read ${all.size} messages")
+        progress = if (full) "Reading all your messages…" else "Reading new messages…"
+        val since = if (full) 0L else lastScanAt - INCREMENTAL_OVERLAP_MS
+        var messages = notFromContacts(SmsInbox.readInbox(context, sinceMillis = since) { progress = it }, contacts)
+        lap("read ${messages.size} messages")
 
-        val messages = all.filterIndexed { i, sms ->
-            if (i % 250 == 0) progress = "Skipping your contacts… ${i + 1} of ${all.size}"
-            !contacts.isContact(sms.address)
-        }
-        lap("contacts filtered, ${messages.size} left")
-
-        // Classify each message once by content; any sender with a political
-        // text is tainted, so everything else from it is filed too.
+        // Classify by content; any sender with a political text is tainted, so
+        // everything else from it is filed too.
         val byContent = settings.classifier(taintedSenders = emptyList())
-        val results = messages.mapIndexed { i, sms ->
-            if (i % 250 == 0) progress = "Checking message ${i + 1} of ${messages.size}…"
-            byContent.classify(sms.body, sms.address)
+        var results = classifyAll(messages, byContent)
+        val alreadyTainted = store.taintedSenders()
+        val politicalSenders = messages.filterIndexed { i, _ -> results[i].isPolitical }.map { it.address }
+        store.markTainted(politicalSenders)
+
+        if (!full) {
+            // Senders flagged since the last scan (here or by the live filter) may
+            // have older texts outside the window: re-read their conversations.
+            val newlyTainted = store.taintedSince(lastScanAt) +
+                politicalSenders.map(Classifier::normalizeSender).filter { it !in alreadyTainted }
+            val threads = messages.filter { Classifier.normalizeSender(it.address) in newlyTainted }
+                .map { it.threadId }.filter { it > 0 }.toSet()
+            if (threads.isNotEmpty()) {
+                progress = "Checking older texts from newly flagged senders…"
+                val seen = messages.map { it.id }.toSet()
+                val older = notFromContacts(SmsInbox.readInbox(context, threadIds = threads), contacts)
+                    .filter { it.id !in seen }
+                messages = messages + older
+                results = results + classifyAll(older, byContent)
+                lap("re-read ${older.size} texts from ${threads.size} newly flagged conversations")
+            }
         }
-        lap("classified")
-        store.markTainted(messages.filterIndexed { i, _ -> results[i].isPolitical }.map { it.address })
         val tainted = store.taintedSenders()
 
         var filed = 0
@@ -77,10 +109,25 @@ object Cleanup {
                 if (result.isPolitical && store.fileFromInbox(sms, result)) filed++
             }
         }
+        settings.lastScanAt = startedAt
+        settings.lastScanFingerprint = fingerprint
+        lastStats = ScanStats(messages.count { !it.isMms }, messages.count { it.isMms }, full)
         lap("filed $filed")
         progress = ""
         return ScanResult(messages.size, filed, store.pendingSmsIds().size)
     }
+
+    private fun notFromContacts(all: List<SmsInbox.Message>, contacts: ContactsChecker) =
+        all.filterIndexed { i, sms ->
+            if (i % 250 == 0) progress = "Skipping your contacts… ${i + 1} of ${all.size}"
+            !contacts.isContact(sms.address)
+        }
+
+    private fun classifyAll(messages: List<SmsInbox.Message>, classifier: Classifier) =
+        messages.mapIndexed { i, sms ->
+            if (i % 250 == 0) progress = "Checking message ${i + 1} of ${messages.size}…"
+            classifier.classify(sms.body, sms.address)
+        }
 
     /** Deletes pending messages from the inbox. Requires being the default SMS app. */
     @Synchronized

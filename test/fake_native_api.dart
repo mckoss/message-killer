@@ -89,9 +89,16 @@ class FakeNativeApi implements NativeApi {
   }
 
   @override
-  Future<ScanResult> scanInbox() async {
-    calls.add('scanInbox');
-    return ScanResult(scanned: 100, newlyFiled: pending, pending: pending);
+  Future<ScanResult> scanInbox({bool full = false}) async {
+    calls.add(full ? 'fullScan' : 'scanInbox');
+    return ScanResult(
+      scanned: 100,
+      newlyFiled: pending,
+      pending: pending,
+      texts: 90,
+      pictureMessages: 10,
+      full: full,
+    );
   }
 
   @override

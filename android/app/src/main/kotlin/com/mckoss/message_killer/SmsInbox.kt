@@ -16,23 +16,58 @@ import android.util.Log
 object SmsInbox {
     private const val PDU_FROM = 137
 
-    data class Message(val id: Long, val address: String, val body: String, val date: Long) {
+    data class Message(
+        val id: Long,
+        val address: String,
+        val body: String,
+        val date: Long,
+        val threadId: Long = 0,
+    ) {
         val isMms: Boolean get() = id < 0
     }
 
     fun mmsId(rowId: Long) = -rowId
 
-    fun readInbox(context: Context, onProgress: (String) -> Unit = {}): List<Message> {
-        val sms = readSms(context, onProgress)
-        return (sms + readMms(context, onProgress)).sortedByDescending { it.date }
+    /**
+     * Reads received texts and picture messages.
+     * [sinceMillis]: only messages received after this time (0 = everything).
+     * [threadIds]: only these conversations (null = all).
+     */
+    fun readInbox(
+        context: Context,
+        sinceMillis: Long = 0,
+        threadIds: Collection<Long>? = null,
+        onProgress: (String) -> Unit = {},
+    ): List<Message> {
+        if (threadIds != null && threadIds.isEmpty()) return emptyList()
+        val sms = readSms(context, sinceMillis, threadIds, onProgress)
+        return (sms + readMms(context, sinceMillis, threadIds, onProgress)).sortedByDescending { it.date }
     }
 
-    private fun readSms(context: Context, onProgress: (String) -> Unit): List<Message> {
+    /** SQL selection for an optional date floor and conversation filter. */
+    private fun selection(dateColumn: String, since: Long, threadIds: Collection<Long>?): Pair<String?, Array<String>?> {
+        val clauses = ArrayList<String>()
+        val args = ArrayList<String>()
+        if (since > 0) {
+            clauses += "$dateColumn > ?"
+            args += since.toString()
+        }
+        if (threadIds != null) {
+            clauses += "thread_id IN (${threadIds.joinToString(",") { "?" }})"
+            args += threadIds.map { it.toString() }
+        }
+        return if (clauses.isEmpty()) null to null else clauses.joinToString(" AND ") to args.toTypedArray()
+    }
+
+    private fun readSms(
+        context: Context, since: Long, threadIds: Collection<Long>?, onProgress: (String) -> Unit,
+    ): List<Message> {
         val projection = arrayOf(
-            Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE,
+            Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms.THREAD_ID,
         )
+        val (where, args) = selection(Telephony.Sms.DATE, since, threadIds)
         val cursor = context.contentResolver.query(
-            Telephony.Sms.Inbox.CONTENT_URI, projection, null, null, "${Telephony.Sms.DATE} DESC",
+            Telephony.Sms.Inbox.CONTENT_URI, projection, where, args, "${Telephony.Sms.DATE} DESC",
         ) ?: return emptyList()
         return cursor.use { c ->
             buildList {
@@ -43,6 +78,7 @@ object SmsInbox {
                         address = c.getString(1) ?: "",
                         body = c.getString(2) ?: "",
                         date = c.getLong(3),
+                        threadId = c.getLong(4),
                     ))
                 }
             }
@@ -53,24 +89,46 @@ object SmsInbox {
      * Incoming MMS ("picture messages", and long texts carriers send as MMS). The
      * text lives in text/plain parts and the sender in the addr table (type 137 = from).
      */
-    private fun readMms(context: Context, onProgress: (String) -> Unit): List<Message> {
+    private fun readMms(
+        context: Context, since: Long, threadIds: Collection<Long>?, onProgress: (String) -> Unit,
+    ): List<Message> {
         val resolver = context.contentResolver
+        // Matching MMS rows first (MMS dates are in seconds).
+        data class Row(val id: Long, val date: Long, val thread: Long)
+        val rows = ArrayList<Row>()
+        val (where, args) = selection(Telephony.Mms.DATE, since / 1000, threadIds)
+        resolver.query(
+            Telephony.Mms.Inbox.CONTENT_URI,
+            arrayOf(Telephony.Mms._ID, Telephony.Mms.DATE, Telephony.Mms.THREAD_ID),
+            where, args, null,
+        )?.use { c -> while (c.moveToNext()) rows += Row(c.getLong(0), c.getLong(1) * 1000, c.getLong(2)) }
+        if (rows.isEmpty()) return emptyList()
+
+        // Their text parts: all at once for a full read, by message id otherwise.
         val texts = HashMap<Long, StringBuilder>()
+        val partQueries: List<Pair<String, Array<String>>> = if (since == 0L && threadIds == null) {
+            listOf("${Telephony.Mms.Part.CONTENT_TYPE} = ?" to arrayOf("text/plain"))
+        } else {
+            rows.map { it.id }.chunked(500).map { chunk ->
+                "${Telephony.Mms.Part.CONTENT_TYPE} = ? AND ${Telephony.Mms.Part.MSG_ID} IN (${chunk.joinToString(",") { "?" }})" to
+                    (arrayOf("text/plain") + chunk.map { it.toString() })
+            }
+        }
         try {
-            resolver.query(
-                Uri.parse("content://mms/part"),
-                arrayOf(Telephony.Mms.Part._ID, Telephony.Mms.Part.MSG_ID, Telephony.Mms.Part.TEXT),
-                "${Telephony.Mms.Part.CONTENT_TYPE} = ?",
-                arrayOf("text/plain"),
-                null,
-            )?.use { c ->
-                var n = 0
-                while (c.moveToNext()) {
-                    if (n++ % 250 == 0) onProgress("Reading picture messages… $n")
-                    val text = c.getString(2) ?: readPartText(context, c.getLong(0)) ?: continue
-                    val sb = texts.getOrPut(c.getLong(1)) { StringBuilder() }
-                    if (sb.isNotEmpty()) sb.append('\n')
-                    sb.append(text)
+            var n = 0
+            for ((partWhere, partArgs) in partQueries) {
+                resolver.query(
+                    Uri.parse("content://mms/part"),
+                    arrayOf(Telephony.Mms.Part._ID, Telephony.Mms.Part.MSG_ID, Telephony.Mms.Part.TEXT),
+                    partWhere, partArgs, null,
+                )?.use { c ->
+                    while (c.moveToNext()) {
+                        if (n++ % 250 == 0) onProgress("Reading picture messages… $n")
+                        val text = c.getString(2) ?: readPartText(context, c.getLong(0)) ?: continue
+                        val sb = texts.getOrPut(c.getLong(1)) { StringBuilder() }
+                        if (sb.isNotEmpty()) sb.append('\n')
+                        sb.append(text)
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -80,30 +138,16 @@ object SmsInbox {
 
         onProgress("Matching picture messages to senders…")
         val threadSenders = threadSenders(context)
-        val messages = ArrayList<Message>()
-        resolver.query(
-            Telephony.Mms.Inbox.CONTENT_URI,
-            arrayOf(Telephony.Mms._ID, Telephony.Mms.DATE, Telephony.Mms.THREAD_ID),
-            null, null, null,
-        )?.use { c ->
-            while (c.moveToNext()) {
-                val rowId = c.getLong(0)
-                val body = texts[rowId]?.toString()?.takeIf { it.isNotBlank() } ?: continue
-                val sender = if (threadSenders != null) {
-                    // Group conversations are skipped: they're with people, not bulk senders.
-                    threadSenders[c.getLong(2)] ?: continue
-                } else {
-                    mmsSender(context, rowId) // slow fallback: one query per message
-                }
-                messages += Message(
-                    id = mmsId(rowId),
-                    address = sender,
-                    body = body,
-                    date = c.getLong(1) * 1000, // MMS dates are in seconds
-                )
+        return rows.mapNotNull { row ->
+            val body = texts[row.id]?.toString()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val sender = if (threadSenders != null) {
+                // Group conversations are skipped: they're with people, not bulk senders.
+                threadSenders[row.thread] ?: return@mapNotNull null
+            } else {
+                mmsSender(context, row.id) // slow fallback: one query per message
             }
+            Message(id = mmsId(row.id), address = sender, body = body, date = row.date, threadId = row.thread)
         }
-        return messages
     }
 
     /**

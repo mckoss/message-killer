@@ -87,6 +87,12 @@ class SpamStore private constructor(context: Context) :
         }, SQLiteDatabase.CONFLICT_IGNORE)
     }
 
+    /** Senders flagged after [since] (ms), e.g. by the live filter between scans. */
+    @Synchronized
+    fun taintedSince(since: Long): Set<String> =
+        readableDatabase.rawQuery("SELECT sender FROM tainted_senders WHERE added_at > ?", arrayOf(since.toString()))
+            .use { c -> buildSet { while (c.moveToNext()) add(c.getString(0)) } }
+
     @Synchronized
     fun taintedSenders(): Set<String> =
         readableDatabase.rawQuery("SELECT sender FROM tainted_senders", null)
