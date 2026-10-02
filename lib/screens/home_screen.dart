@@ -136,7 +136,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             _SetupStep(
               done: status.smsPermission,
               title: 'Allow access to your texts',
-              subtitle: 'Needed to find political texts already in your inbox.',
+              subtitle: 'Needed to find spam texts already in your inbox.',
               action: 'Allow',
               onPressed: () async {
                 await api.requestPermissions();
@@ -157,7 +157,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               done: status.notificationAccess,
               title: 'Turn on the live filter',
               subtitle:
-                  'Lets Message Killer silence political texts as they arrive. '
+                  'Lets Message Killer silence spam texts as they arrive. '
                   'Choose Message Killer and turn it on.',
               action: 'Open',
               onPressed: api.openNotificationAccessSettings,
@@ -193,8 +193,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           !status.notificationAccess
               ? 'Needs notification access (see setup above)'
               : status.liveFilter
-              ? 'Silenced ${plural(status.silencedToday, 'political text')} in the last 24 hours'
-              : 'Off: political texts will notify you normally',
+              ? 'Silenced ${plural(status.silencedToday, 'spam text')} in the last 24 hours'
+              : 'Off: spam texts will notify you normally',
         ),
         value: status.liveFilter,
         onChanged: (value) async {
@@ -233,8 +233,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               title: const Text('Clean up inbox'),
               subtitle: Text(
                 status.pendingDelete > 0
-                    ? '${plural(status.pendingDelete, 'political text')} waiting to be deleted'
-                    : 'Find political texts in your inbox, save them to the Spam folder, and delete them',
+                    ? '${plural(status.pendingDelete, 'spam text')} waiting to be deleted'
+                    : 'Find spam texts in your inbox, save them to the Spam folder, and delete them',
               ),
             ),
             Padding(
@@ -253,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             SwitchListTile(
               title: const Text('Daily cleanup reminder'),
               subtitle: const Text(
-                'Scans once a day and notifies you when political texts are ready to delete',
+                'Scans once a day and notifies you when spam texts are ready to delete',
               ),
               value: status.dailyCleanup,
               onChanged: (value) async {

@@ -26,7 +26,7 @@ object Notifications {
     private fun ensureChannels(context: Context) {
         manager(context).createNotificationChannels(listOf(
             NotificationChannel(CHANNEL_CLEANUP, "Daily cleanup", NotificationManager.IMPORTANCE_DEFAULT)
-                .apply { description = "Political texts ready to delete" },
+                .apply { description = "Spam texts ready to delete" },
             NotificationChannel(CHANNEL_INCOMING, "Incoming texts", NotificationManager.IMPORTANCE_HIGH)
                 .apply { description = "Texts received while Message Killer is temporarily the default SMS app" },
         ))
@@ -49,7 +49,7 @@ object Notifications {
     fun showCleanupReady(context: Context, pending: Int) {
         if (!canPost(context)) return
         ensureChannels(context)
-        val text = if (pending == 1) "1 political text is ready to delete" else "$pending political texts are ready to delete"
+        val text = if (pending == 1) "1 spam text is ready to delete" else "$pending spam texts are ready to delete"
         manager(context).notify(ID_CLEANUP_READY, Notification.Builder(context, CHANNEL_CLEANUP)
             .setSmallIcon(android.R.drawable.ic_menu_delete)
             .setContentTitle("Message Killer")

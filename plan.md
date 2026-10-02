@@ -270,6 +270,15 @@ Flutter UI:
     "switch back to Google Messages" step that opens the Default apps
     settings and checks that the switch happened.
 
+### Phase 1b — Since the MVP ✅
+- Picture messages (MMS) scanned and deleted; batched deletes with progress.
+- Incremental scans keyed by a rules fingerprint (`Classifier.fingerprint`):
+  any change to built-in rules, keywords, allowed senders, or enabled
+  categories forces a full rescan. Bump `SCAN_LOGIC_VERSION` for scan-logic
+  changes the rule list doesn't capture.
+- Categories: Political / Commercial / Phishing (DB v3 `category` column).
+- Flagged ("tainted") senders: political only; view, un-flag, export.
+
 ### Phase 2 — Validate on a real phone
 15. Confirm deleted texts stay gone after Google Messages becomes the
     default again and re-syncs.

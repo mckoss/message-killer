@@ -31,6 +31,8 @@ class FakeNativeApi implements NativeApi {
   bool dailyCleanup = false;
   List<String> customKeywords = [];
   List<String> allowedSenders = [];
+  Set<SpamCategory> categories = {...SpamCategory.values};
+  List<FlaggedSender> flagged = [];
   List<SpamEntry> spam;
   String? launchAction;
   final calls = <String>[];
@@ -163,6 +165,7 @@ class FakeNativeApi implements NativeApi {
     dailyCleanup: dailyCleanup,
     customKeywords: List.of(customKeywords),
     allowedSenders: List.of(allowedSenders),
+    categories: {...categories},
   );
 
   @override
@@ -171,7 +174,9 @@ class FakeNativeApi implements NativeApi {
     bool? dailyCleanup,
     List<String>? customKeywords,
     List<String>? allowedSenders,
+    Set<SpamCategory>? categories,
   }) async {
+    if (categories != null) this.categories = categories;
     if (liveFilter != null) this.liveFilter = liveFilter;
     if (dailyCleanup != null) this.dailyCleanup = dailyCleanup;
     if (customKeywords != null) this.customKeywords = customKeywords;
@@ -183,11 +188,27 @@ class FakeNativeApi implements NativeApi {
     final political = text.toLowerCase().contains('actblue');
     return ClassifyResult(
       score: political ? 3 : 0,
-      political: political,
+      spam: political,
+      category: political ? SpamCategory.political : null,
       reasons: political
           ? ['Fundraising platform (ActBlue/WinRed/Anedot)']
           : [],
     );
+  }
+
+  @override
+  Future<List<FlaggedSender>> listFlagged() async => List.of(flagged);
+
+  @override
+  Future<void> unflagSender(String sender) async {
+    calls.add('unflag:$sender');
+    flagged.removeWhere((f) => f.sender == sender);
+  }
+
+  @override
+  Future<ExportResult> exportFlagged() async {
+    calls.add('exportFlagged');
+    return ExportResult(count: flagged.length, files: const ['flagged.json']);
   }
 }
 
@@ -195,7 +216,9 @@ SpamEntry spamEntry(
   int id, {
   SpamStatus status = SpamStatus.silenced,
   String sender = '88022',
+  SpamCategory category = SpamCategory.political,
 }) => SpamEntry(
+  category: category,
   id: id,
   source: 'notification',
   status: status,

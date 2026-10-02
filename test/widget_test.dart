@@ -5,6 +5,16 @@ import 'package:message_killer/native_api.dart';
 
 import 'fake_native_api.dart';
 
+/// Scrolls the screen's main list until [finder] is on screen.
+Future<void> scrollTo(WidgetTester tester, Finder finder) async {
+  await tester.scrollUntilVisible(
+    finder,
+    200,
+    scrollable: find.byType(Scrollable).first,
+  );
+  await tester.pumpAndSettle();
+}
+
 /// Like pumpAndSettle, but tolerates the endless progress spinner shown while a cleanup is running.
 Future<void> pumpABit(WidgetTester tester) async {
   for (var i = 0; i < 10; i++) {
@@ -64,7 +74,7 @@ void main() {
         'deletePending',
       ]),
     );
-    expect(find.text('Deleted 3 political texts'), findsOneWidget);
+    expect(find.text('Deleted 3 spam texts'), findsOneWidget);
     expect(find.text('Switch back to Messages'), findsOneWidget);
 
     await tester.tap(find.text('Switch back to Messages'));
@@ -114,7 +124,7 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await pumpABit(tester);
     expect(api.calls, contains('deletePending'));
-    expect(find.text('Deleted 2 political texts'), findsOneWidget);
+    expect(find.text('Deleted 2 spam texts'), findsOneWidget);
   });
 
   testWidgets('cleanup with nothing to delete shows a message', (tester) async {
@@ -124,7 +134,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.text(
-        'No political texts to delete. '
+        'No spam texts to delete. '
         'Checked 90 texts + 10 picture messages since the last scan.',
       ),
       findsOneWidget,
@@ -183,6 +193,7 @@ void main() {
     await tester.tap(find.byTooltip('Filter settings'));
     await tester.pumpAndSettle();
 
+    await scrollTo(tester, find.text('Custom keywords'));
     await tester.enterText(
       find.widgetWithText(TextField, 'e.g. a candidate\'s name'),
       'Jane Doe',
@@ -192,18 +203,15 @@ void main() {
     expect(api.customKeywords, ['Jane Doe']);
     expect(find.widgetWithText(InputChip, 'Jane Doe'), findsOneWidget);
 
+    await scrollTo(tester, find.widgetWithText(TextField, 'Message text'));
     await tester.enterText(
       find.widgetWithText(TextField, 'Message text'),
       'Give at actblue.com',
     );
-    await tester.scrollUntilVisible(
-      find.text('Test'),
-      200,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await scrollTo(tester, find.text('Test'));
     await tester.tap(find.text('Test'));
     await tester.pumpAndSettle();
-    expect(find.text('Would be filtered'), findsOneWidget);
+    expect(find.text('Would be filtered as Political'), findsOneWidget);
   });
 
   testWidgets('preview: "Allow sender" keeps that sender\'s texts', (
@@ -238,6 +246,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Filter settings'));
     await tester.pumpAndSettle();
+    await scrollTo(tester, find.text('Allowed senders'));
     await tester.tap(find.text('Allowed senders'));
     await tester.pumpAndSettle();
 
@@ -297,14 +306,81 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Filter settings'));
     await tester.pumpAndSettle();
+    await scrollTo(tester, find.text('Rescan all messages'));
     await tester.tap(find.text('Rescan all messages'));
     await pumpABit(tester);
     expect(api.calls, contains('fullScan'));
     expect(
       find.text(
-        'No political texts to delete. Checked 90 texts + 10 picture messages.',
+        'No spam texts to delete. Checked 90 texts + 10 picture messages.',
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('spam folder filters by category', (tester) async {
+    final api = FakeNativeApi(
+      spam: [
+        spamEntry(1, sender: 'Campaign'),
+        spamEntry(2, sender: 'CVS', category: SpamCategory.commercial),
+        spamEntry(3, sender: 'Toll scam', category: SpamCategory.phishing),
+      ],
+    );
+    await tester.pumpWidget(MessageKillerApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Spam folder'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('All (3)'), findsOneWidget);
+    await tester.tap(find.text('Commercial (1)'));
+    await tester.pumpAndSettle();
+    expect(find.text('CVS'), findsOneWidget);
+    expect(find.text('Campaign'), findsNothing);
+    expect(find.text('Toll scam'), findsNothing);
+  });
+
+  testWidgets('settings: turning off a category saves it', (tester) async {
+    final api = FakeNativeApi();
+    await tester.pumpWidget(MessageKillerApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Filter settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(SwitchListTile, 'Commercial'));
+    await tester.pumpAndSettle();
+    expect(api.categories, {SpamCategory.political, SpamCategory.phishing});
+  });
+
+  testWidgets('flagged senders: list, export, un-flag', (tester) async {
+    final api = FakeNativeApi()
+      ..flagged = [
+        FlaggedSender(
+          sender: '5042944686',
+          flaggedAt: DateTime(2026, 9, 1),
+          messages: 60,
+        ),
+      ];
+    await tester.pumpWidget(MessageKillerApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Filter settings'));
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.text('Flagged senders'));
+    await tester.tap(find.text('Flagged senders'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('(504) 294-4686'), findsOneWidget);
+    expect(find.textContaining('60 texts in Spam folder'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Export to Downloads'));
+    await tester.pump();
+    await tester.pump();
+    expect(api.calls, contains('exportFlagged'));
+    expect(find.textContaining('Saved 1 sender to Downloads'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Un-flag (504) 294-4686'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Un-flag'));
+    await tester.pumpAndSettle();
+    expect(api.calls, contains('unflag:5042944686'));
+    expect(find.text('(504) 294-4686'), findsNothing);
   });
 }

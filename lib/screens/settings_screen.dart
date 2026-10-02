@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../native_api.dart';
 import 'allowed_senders_screen.dart';
 import 'cleanup_flow.dart';
+import 'flagged_senders_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.api});
@@ -58,9 +59,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                Text('What to filter', style: theme.textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text(
+                  'Changing these re-checks all your messages on the next scan.',
+                  style: theme.textTheme.bodySmall,
+                ),
+                for (final c in SpamCategory.values)
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(c.label),
+                    subtitle: Text(switch (c) {
+                      SpamCategory.political =>
+                        'Campaigns, PACs, donation asks, political polls',
+                      SpamCategory.commercial => 'Sales, coupons and promotions (judged per message, never by sender)',
+                      SpamCategory.phishing =>
+                        'Fake toll, delivery, account and prize texts',
+                    }),
+                    value: settings.categories.contains(c),
+                    onChanged: (on) async {
+                      final next = {...settings.categories};
+                      on ? next.add(c) : next.remove(c);
+                      await widget.api.updateSettings(categories: next);
+                      await _load();
+                    },
+                  ),
+                const SizedBox(height: 16),
                 _EditableList(
                   title: 'Custom keywords',
-                  description: 'Any text containing one of these words or phrases is always treated as political.',
+                  description: 'Any text containing one of these words or phrases is always filtered.',
                   hint: 'e.g. a candidate\'s name',
                   items: settings.customKeywords,
                   onChanged: (items) async {
@@ -86,6 +113,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                       await _load();
                     },
+                  ),
+                ),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.flag_outlined),
+                    title: const Text('Flagged senders'),
+                    subtitle: const Text(
+                      'Numbers that sent political texts; view, un-flag, or export',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => FlaggedSendersScreen(api: widget.api),
+                      ),
+                    ),
                   ),
                 ),
                 Card(
@@ -136,16 +178,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(
-                      result.political
-                          ? Icons.block
-                          : Icons.check_circle_outline,
-                      color: result.political
+                      result.spam ? Icons.block : Icons.check_circle_outline,
+                      color: result.spam
                           ? theme.colorScheme.error
                           : theme.colorScheme.primary,
                     ),
                     title: Text(
-                      result.political
-                          ? 'Would be filtered'
+                      result.spam
+                          ? 'Would be filtered as ${result.category?.label ?? 'spam'}'
                           : 'Would not be filtered',
                     ),
                     subtitle: Text(

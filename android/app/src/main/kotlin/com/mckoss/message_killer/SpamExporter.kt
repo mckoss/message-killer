@@ -27,6 +27,28 @@ object SpamExporter {
         return Result(entries.size, listOf(json, csv))
     }
 
+    /** Saves the flagged-senders list to Downloads (JSON + CSV), e.g. to share with someone. */
+    fun exportFlagged(context: Context): Result {
+        val senders = SpamStore.get(context).flaggedSenders()
+        val stamp = SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.US).format(Date())
+        val base = "message-killer-flagged-senders-$stamp"
+        val json = JSONArray()
+        senders.forEach {
+            json.put(JSONObject().apply {
+                put("sender", it.sender)
+                put("flaggedAt", isoTime(it.addedAt))
+                put("textsInSpamFolder", it.messages)
+            })
+        }
+        val csv = buildString {
+            append("sender,flagged_at,texts_in_spam_folder\r\n")
+            senders.forEach { append(listOf(it.sender, isoTime(it.addedAt), it.messages.toString()).joinToString(",") { v -> csvField(v) }).append("\r\n") }
+        }
+        write(context, "$base.json", "application/json", json.toString(2))
+        write(context, "$base.csv", "text/csv", csv)
+        return Result(senders.size, listOf("$base.json", "$base.csv"))
+    }
+
     private fun write(context: Context, name: String, mime: String, content: String) {
         val resolver = context.contentResolver
         val values = ContentValues().apply {
@@ -59,6 +81,7 @@ object SpamExporter {
                 put("receivedAt", isoTime(e.messageTime))
                 put("filedAt", isoTime(e.filedAt))
                 put("status", e.status)
+                put("category", e.category)
                 put("source", e.source)
                 put("score", e.score)
                 put("reasons", JSONArray(e.reasons))
@@ -68,10 +91,10 @@ object SpamExporter {
     }
 
     fun toCsv(entries: List<SpamStore.Entry>): String = buildString {
-        append("received_at,sender,body,status,score,reasons\r\n")
+        append("received_at,sender,body,category,status,score,reasons\r\n")
         for (e in entries) {
             append(listOf(
-                isoTime(e.messageTime), e.sender, e.body, e.status,
+                isoTime(e.messageTime), e.sender, e.body, e.category, e.status,
                 e.score.toString(), e.reasons.joinToString("; "),
             ).joinToString(",") { csvField(it) })
             append("\r\n")

@@ -81,6 +81,22 @@ class MainActivity : FlutterActivity() {
                 mapOf("deleted" to deleted, "failed" to failed)
             }
             "listSpam" -> background(result) { store.list().map { it.toMap() } }
+            "listFlagged" -> background(result) {
+                store.flaggedSenders().map { mapOf("sender" to it.sender, "addedAt" to it.addedAt, "messages" to it.messages) }
+            }
+            "unflagSender" -> background(result) {
+                val sender = call.argument<String>("sender") ?: ""
+                store.untaint(sender)
+                // Texts waiting to be deleted only because this sender was flagged stay in the inbox.
+                val normalized = Classifier.normalizeSender(sender)
+                store.removePendingWhere {
+                    Classifier.normalizeSender(it.sender) == normalized && Classifier.TAINTED_REASON in it.reasons
+                }
+            }
+            "exportFlagged" -> background(result) {
+                val export = SpamExporter.exportFlagged(this)
+                mapOf("count" to export.count, "files" to export.files)
+            }
             "exportSpam" -> background(result) {
                 val export = SpamExporter.export(this, pendingOnly = call.argument<Boolean>("pendingOnly") == true)
                 mapOf("count" to export.count, "files" to export.files)
@@ -108,6 +124,7 @@ class MainActivity : FlutterActivity() {
                 "dailyCleanup" to settings.dailyCleanup,
                 "customKeywords" to settings.customKeywords,
                 "allowedSenders" to settings.allowedSenders,
+                "categories" to settings.enabledCategories.map { it.key },
             ))
             "updateSettings" -> {
                 call.argument<Boolean>("liveFilter")?.let { settings.liveFilter = it }
@@ -117,13 +134,18 @@ class MainActivity : FlutterActivity() {
                 }
                 call.argument<List<String>>("customKeywords")?.let { settings.customKeywords = it }
                 call.argument<List<String>>("allowedSenders")?.let { settings.allowedSenders = it }
+                call.argument<List<String>>("categories")?.let { keys ->
+                    settings.enabledCategories = keys.mapNotNull { Classifier.Category.fromKey(it) }.toSet()
+                }
                 result.success(null)
             }
             "classify" -> {
                 val r = settings.classifier().classify(
                     call.argument<String>("text") ?: "", call.argument<String>("sender"),
                 )
-                result.success(mapOf("score" to r.score, "political" to r.isPolitical, "reasons" to r.reasons))
+                result.success(mapOf(
+                    "score" to r.score, "spam" to r.isSpam, "category" to r.category?.key, "reasons" to r.reasons,
+                ))
             }
             else -> result.notImplemented()
         }

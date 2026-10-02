@@ -23,6 +23,9 @@ class SpamFolderScreen extends StatefulWidget {
 class _SpamFolderScreenState extends State<SpamFolderScreen> {
   List<SpamEntry>? _entries;
 
+  /// Category filter; null = all.
+  SpamCategory? _filter;
+
   @override
   void initState() {
     super.initState();
@@ -45,7 +48,10 @@ class _SpamFolderScreenState extends State<SpamFolderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final entries = _entries;
+    final all = _entries;
+    final entries = all
+        ?.where((e) => _filter == null || e.category == _filter)
+        .toList();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Spam folder'),
@@ -62,11 +68,35 @@ class _SpamFolderScreenState extends State<SpamFolderScreen> {
                   if (index == 0) {
                     return Padding(
                       padding: const EdgeInsets.all(16),
-                      child: Text(
-                        entries.isEmpty
-                            ? 'No political texts yet. Silenced and deleted texts will show up here.'
-                            : 'Political texts are kept here for ${widget.retentionDays} days, then removed for good.',
-                        style: Theme.of(context).textTheme.bodySmall,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Wrap(
+                            spacing: 8,
+                            children: [
+                              for (final c in <SpamCategory?>[
+                                null,
+                                ...SpamCategory.values,
+                              ])
+                                ChoiceChip(
+                                  label: Text(
+                                    '${c?.label ?? 'All'} '
+                                    '(${all!.where((e) => c == null || e.category == c).length})',
+                                  ),
+                                  selected: _filter == c,
+                                  onSelected: (_) =>
+                                      setState(() => _filter = c),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            all!.isEmpty
+                                ? 'Nothing filtered yet. Silenced and deleted texts will show up here.'
+                                : 'Filtered texts are kept here for ${widget.retentionDays} days, then removed for good.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
                       ),
                     );
                   }
@@ -79,7 +109,7 @@ class _SpamFolderScreenState extends State<SpamFolderScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     subtitle: Text(
-                      entry.body,
+                      '${entry.category.label} · ${entry.body}',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -150,6 +180,7 @@ class SpamEntryScreen extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             leading: Icon(_statusIcon(entry.status)),
             title: Text(entry.statusLabel),
+            subtitle: Text(entry.category.label),
           ),
           Text(
             'Why it was flagged (score ${entry.score.toStringAsFixed(1)})',

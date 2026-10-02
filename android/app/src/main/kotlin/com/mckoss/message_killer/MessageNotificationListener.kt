@@ -48,7 +48,7 @@ class MessageNotificationListener : NotificationListenerService() {
 
         val classifier = settings.classifier()
         val results = messages.map { it to classifier.classify(it.text, it.sender) }
-        if (!results.all { it.second.isPolitical }) return
+        if (!results.all { it.second.isSpam }) return
 
         cancelNotification(sbn.key)
         val store = SpamStore.get(this)

@@ -49,7 +49,7 @@ class ClassifierTest {
             Paid for by Tax the Ultra-Rich Now, Yes on 3 & 40, No on 41 & 42.
             Stop2End
         """.trimIndent()
-        assertTrue(classifier.classify(text).isPolitical)
+        assertTrue(classifier.classify(text).isSpam)
     }
 
     private val normal = listOf(
@@ -59,20 +59,80 @@ class ClassifierTest {
         "Your package has been delivered. Reply STOP to unsubscribe.",
         "Did you vote yet? The line at the school was long lol",
         "Mom's birthday is Saturday, can you chip in for the cake?",
-        "Flash sale! 30% off everything today only. Reply STOP to opt out",
         "Your Chase account: a payment of \$45.00 posted today.",
         "Hey, it's Adam. Running 10 minutes late!",
         "Jamie Lee here, your dental appointment is confirmed for Tuesday.",
         "The quarterly report deadline moved to Friday.",
         "HAPPY BIRTHDAY MOM!! Love you",
+    )
+
+    // More political texts that got through (Oct 2026), links shortened.
+    private val morePolitical = listOf(
+        "Hi, I am Mia from US Speaks. We're polling WA residents. Can you answer a 4-question poll?\n\n1) Yes\n2) No (or QUIT Survey)",
+        "BOYCOTT: TV Networks Stop Coverage of Trump Over Media Ban\n\nDo you support the media's historic BOYCOTT of Trump?\n\nY / N: dem-action.org/l/xxxxx\n\nDAC\nStop2End",
+        "BREAKING: Steve Kornacki's SHOCKING prediction about House control. Read more: house-dem-victory.org/l/xxxxx\n\nHDV\nStop2End",
+    )
+
+    private val commercial = listOf(
+        "birddogs: Last Call on Sharehouse Shorts!\n\nGet 'em now, we aren't making more of these...\n\nhttps://birddogs.pscrpt.io/xxxx\n\n...until next summer.\n\np.s. sorry about the incorrect contact card in our last text. Save this new one, I pinky promise it works.",
+        "CVS ExtraCare: School's back! Be prepared with \$3 off your \$10 pain relief, allergy or immunity support purchase. Tap link to send to card: i.cvs.com/xxxx",
+        "Flash sale! 30% off everything today only. Reply STOP to opt out",
         "FLASH SALE TODAY: 30% off everything. Shop shop.example.com/l/abc123 Reply STOP to opt out",
     )
+
+    private val phishing = listOf(
+        "USPS: Your package could not be delivered due to an incomplete address. Update here: usps-redeliver.top/xx",
+        "Toll Services: You have an unpaid toll balance of \$6.99. Pay within 24 hours to avoid late fees: ezdrive-pay.xyz",
+        "Your Apple ID has been locked due to unusual sign-in activity. Verify your account: apple-id-check.icu",
+        "Congratulations! You have won a \$500 gift card. Claim your reward: bit.ly/xyz",
+    )
+
+    @Test
+    fun flagsMorePoliticalMessages() {
+        for (text in morePolitical) {
+            val r = classifier.classify(text, sender = "+12065550100")
+            assertEquals("score=${r.score}, ${r.reasons}: $text", Classifier.Category.POLITICAL, r.category)
+        }
+    }
+
+    @Test
+    fun flagsCommercialMessages() {
+        for (text in commercial) {
+            val r = classifier.classify(text, sender = "+12065550100")
+            assertEquals("score=${r.score}, ${r.reasons}: $text", Classifier.Category.COMMERCIAL, r.category)
+        }
+    }
+
+    @Test
+    fun flagsPhishing() {
+        for (text in phishing) {
+            val r = classifier.classify(text, sender = "+12065550100")
+            assertEquals("score=${r.score}, ${r.reasons}: $text", Classifier.Category.PHISHING, r.category)
+        }
+    }
+
+    @Test
+    fun disabledCategoriesAreNotFiltered() {
+        val politicalOnly = Classifier(enabled = setOf(Classifier.Category.POLITICAL))
+        assertFalse(politicalOnly.classify(commercial[1]).isSpam)
+        assertTrue(politicalOnly.classify(political[0]).isSpam)
+    }
+
+    @Test
+    fun taintOnlyAppliesToPolitical() {
+        val c = Classifier(taintedSenders = listOf("5042944686"))
+        val r = c.classify("Your prescription is ready for pickup.", sender = "+15042944686")
+        assertEquals(Classifier.Category.POLITICAL, r.category)
+        val noPolitical = Classifier(taintedSenders = listOf("5042944686"),
+            enabled = setOf(Classifier.Category.COMMERCIAL, Classifier.Category.PHISHING))
+        assertFalse(noPolitical.classify("Your prescription is ready for pickup.", sender = "+15042944686").isSpam)
+    }
 
     @Test
     fun flagsPoliticalMessages() {
         for (text in political) {
             val result = classifier.classify(text)
-            assertTrue("Expected political (score=${result.score}, ${result.reasons}): $text", result.isPolitical)
+            assertTrue("Expected political (score=${result.score}, ${result.reasons}): $text", result.isSpam)
         }
     }
 
@@ -80,7 +140,7 @@ class ClassifierTest {
     fun flagsRealInboxPreviews() {
         for (text in realInboxPreviews) {
             val result = classifier.classify(text, sender = "(302) 464-8095")
-            assertTrue("Expected political (score=${result.score}, ${result.reasons}): $text", result.isPolitical)
+            assertTrue("Expected political (score=${result.score}, ${result.reasons}): $text", result.isSpam)
         }
     }
 
@@ -88,23 +148,23 @@ class ClassifierTest {
     fun leavesNormalMessagesAlone() {
         for (text in normal) {
             val result = classifier.classify(text)
-            assertFalse("Expected normal (score=${result.score}, ${result.reasons}): $text", result.isPolitical)
+            assertFalse("Expected normal (score=${result.score}, ${result.reasons}): $text", result.isSpam)
         }
     }
 
     @Test
     fun verificationCodesAreNeverFlagged() {
         val text = "Paid for by Smith for Congress. Your verification code is 123456. Donate at actblue.com"
-        assertFalse(classifier.classify(text).isPolitical)
+        assertFalse(classifier.classify(text).isSpam)
     }
 
     @Test
     fun customKeywordFlagsOnItsOwn() {
         val custom = Classifier(customKeywords = listOf("Jane Doe"))
         val result = custom.classify("A message from Jane Doe about the town meeting")
-        assertTrue(result.isPolitical)
+        assertTrue(result.isSpam)
         assertTrue(result.reasons.contains("Custom keyword: Jane Doe"))
-        assertFalse(custom.classify("A message from Jane Doer").isPolitical)
+        assertFalse(custom.classify("A message from Jane Doer").isSpam)
     }
 
     @Test
@@ -113,34 +173,35 @@ class ClassifierTest {
         assertEquals(base, Classifier.fingerprint(listOf(" jane doe "), listOf("5551234567")))
         assertFalse(base == Classifier.fingerprint(listOf("Jane Doe", "Bob"), listOf("5551234567")))
         assertFalse(base == Classifier.fingerprint(listOf("Jane Doe"), emptyList()))
+        assertFalse(base == Classifier.fingerprint(listOf("Jane Doe"), listOf("5551234567"), setOf(Classifier.Category.POLITICAL)))
     }
 
     @Test
     fun everythingFromATaintedSenderIsFlagged() {
         val c = Classifier(taintedSenders = listOf("+15042944686"))
         val result = c.classify("Thanks for being with us this year!", sender = "(504) 294-4686")
-        assertTrue(result.isPolitical)
+        assertTrue(result.isSpam)
         assertTrue(result.reasons.contains(Classifier.TAINTED_REASON))
-        assertFalse(c.classify("Thanks for being with us this year!", sender = "(504) 294-0000").isPolitical)
+        assertFalse(c.classify("Thanks for being with us this year!", sender = "(504) 294-0000").isSpam)
     }
 
     @Test
     fun taintedSenderStillCannotHideVerificationCodes() {
         val c = Classifier(taintedSenders = listOf("90999"))
-        assertFalse(c.classify("Your verification code is 482913", sender = "90999").isPolitical)
+        assertFalse(c.classify("Your verification code is 482913", sender = "90999").isSpam)
     }
 
     @Test
     fun allowListBeatsTaint() {
         val c = Classifier(allowedSenders = listOf("5042944686"), taintedSenders = listOf("5042944686"))
-        assertFalse(c.classify("Chip in \$5 at actblue.com", sender = "+15042944686").isPolitical)
+        assertFalse(c.classify("Chip in \$5 at actblue.com", sender = "+15042944686").isSpam)
     }
 
     @Test
     fun allowListedSenderIsNeverFlagged() {
         val custom = Classifier(allowedSenders = listOf("+1 (555) 123-4567"))
         val result = custom.classify(political[0], sender = "5551234567")
-        assertFalse(result.isPolitical)
+        assertFalse(result.isSpam)
         assertEquals(0.0, result.score, 0.0)
     }
 

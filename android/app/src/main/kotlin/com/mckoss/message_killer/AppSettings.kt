@@ -40,10 +40,17 @@ class AppSettings(context: Context) {
         get() = prefs.getString(KEY_LAST_SCAN_FINGERPRINT, null)
         set(value) = prefs.edit().putString(KEY_LAST_SCAN_FINGERPRINT, value).apply()
 
-    fun scanFingerprint() = Classifier.fingerprint(customKeywords, allowedSenders)
+    /** Which kinds of spam to filter. All on by default. */
+    var enabledCategories: Set<Classifier.Category>
+        get() = prefs.getString(KEY_CATEGORIES, null)
+            ?.split(',')?.mapNotNull { Classifier.Category.fromKey(it) }?.toSet()
+            ?: Classifier.Category.entries.toSet()
+        set(value) = prefs.edit().putString(KEY_CATEGORIES, value.joinToString(",") { it.key }).apply()
+
+    fun scanFingerprint() = Classifier.fingerprint(customKeywords, allowedSenders, enabledCategories)
 
     fun classifier(taintedSenders: Collection<String> = SpamStore.get(appContext).taintedSenders()) =
-        Classifier(customKeywords, allowedSenders, taintedSenders)
+        Classifier(customKeywords, allowedSenders, taintedSenders, enabledCategories)
 
     fun isAllowed(sender: String): Boolean {
         val normalized = Classifier.normalizeSender(sender)
@@ -75,6 +82,7 @@ class AppSettings(context: Context) {
         private const val KEY_ALLOWED_SENDERS = "allowed_senders"
         private const val KEY_PREVIOUS_DEFAULT = "previous_default_sms"
         private const val KEY_LAST_SCAN_AT = "last_scan_at"
+        private const val KEY_CATEGORIES = "categories"
         private const val KEY_LAST_SCAN_FINGERPRINT = "last_scan_fingerprint"
     }
 }

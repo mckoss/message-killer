@@ -33,7 +33,7 @@ Future<void> runCleanup(
   );
   if (scan.pending == 0) {
     messenger.showSnackBar(
-      SnackBar(content: Text('No political texts to delete. ${scan.summary}.')),
+      SnackBar(content: Text('No spam texts to delete. ${scan.summary}.')),
     );
     return;
   }
@@ -243,7 +243,7 @@ class _SwitchBackScreenState extends State<SwitchBackScreen>
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Deleted ${plural(result.deleted, 'political text')}',
+                  'Deleted ${plural(result.deleted, 'spam text')}',
                   style: theme.textTheme.headlineSmall,
                   textAlign: TextAlign.center,
                 ),

@@ -58,6 +58,21 @@ class AppStatus {
 
 enum SpamStatus { silenced, pendingDelete, deleted }
 
+/// Kind of spam; keys match the native Classifier.Category keys.
+enum SpamCategory {
+  political('political', 'Political'),
+  commercial('commercial', 'Commercial'),
+  phishing('phishing', 'Phishing / scam');
+
+  const SpamCategory(this.key, this.label);
+
+  final String key;
+  final String label;
+
+  static SpamCategory? fromKey(Object? key) =>
+      values.where((c) => c.key == key).firstOrNull;
+}
+
 /// One message in the Spam folder.
 class SpamEntry {
   const SpamEntry({
@@ -70,6 +85,7 @@ class SpamEntry {
     required this.filedAt,
     required this.score,
     required this.reasons,
+    this.category = SpamCategory.political,
   });
 
   final int id;
@@ -81,6 +97,7 @@ class SpamEntry {
   final DateTime filedAt;
   final double score;
   final List<String> reasons;
+  final SpamCategory category;
 
   String get statusLabel => switch (status) {
     SpamStatus.silenced => 'Notification silenced',
@@ -104,6 +121,7 @@ class SpamEntry {
     filedAt: DateTime.fromMillisecondsSinceEpoch((m['filedAt'] as num).toInt()),
     score: (m['score'] as num?)?.toDouble() ?? 0,
     reasons: ((m['reasons'] as List?) ?? const []).cast<String>(),
+    category: SpamCategory.fromKey(m['category']) ?? SpamCategory.political,
   );
 }
 
@@ -113,6 +131,7 @@ class FilterSettings {
     required this.dailyCleanup,
     required this.customKeywords,
     required this.allowedSenders,
+    this.categories = const {...SpamCategory.values},
   });
 
   final bool liveFilter;
@@ -120,24 +139,67 @@ class FilterSettings {
   final List<String> customKeywords;
   final List<String> allowedSenders;
 
+  /// Which kinds of spam are filtered.
+  final Set<SpamCategory> categories;
+
   factory FilterSettings.fromMap(Map<Object?, Object?> m) => FilterSettings(
     liveFilter: m['liveFilter'] == true,
     dailyCleanup: m['dailyCleanup'] == true,
     customKeywords: ((m['customKeywords'] as List?) ?? const []).cast<String>(),
     allowedSenders: ((m['allowedSenders'] as List?) ?? const []).cast<String>(),
+    categories: m['categories'] == null
+        ? {...SpamCategory.values}
+        : {for (final k in m['categories'] as List) ?SpamCategory.fromKey(k)},
+  );
+}
+
+/// A sender flagged for sending political texts (everything from it is filtered).
+class FlaggedSender {
+  const FlaggedSender({
+    required this.sender,
+    required this.flaggedAt,
+    required this.messages,
+  });
+
+  /// Normalized: last 10 digits of a phone number, or a lower-cased name.
+  final String sender;
+  final DateTime flaggedAt;
+
+  /// How many of its texts are in the Spam folder.
+  final int messages;
+
+  /// "(504) 294-4686" for 10-digit numbers; otherwise as stored.
+  String get display {
+    final s = sender;
+    if (RegExp(r'^\d{10}$').hasMatch(s)) {
+      return '(${s.substring(0, 3)}) ${s.substring(3, 6)}-${s.substring(6)}';
+    }
+    return s;
+  }
+
+  factory FlaggedSender.fromMap(Map<Object?, Object?> m) => FlaggedSender(
+    sender: m['sender'] as String? ?? '',
+    flaggedAt: DateTime.fromMillisecondsSinceEpoch(
+      (m['addedAt'] as num?)?.toInt() ?? 0,
+    ),
+    messages: (m['messages'] as num?)?.toInt() ?? 0,
   );
 }
 
 class ClassifyResult {
   const ClassifyResult({
     required this.score,
-    required this.political,
+    required this.spam,
     required this.reasons,
+    this.category,
   });
 
   final double score;
-  final bool political;
+  final bool spam;
   final List<String> reasons;
+
+  /// The winning category when [spam]; null otherwise.
+  final SpamCategory? category;
 }
 
 class ScanResult {
@@ -214,8 +276,18 @@ abstract class NativeApi {
     bool? dailyCleanup,
     List<String>? customKeywords,
     List<String>? allowedSenders,
+    Set<SpamCategory>? categories,
   });
   Future<ClassifyResult> classify(String text, {String? sender});
+
+  /// Senders flagged for political texts, newest first.
+  Future<List<FlaggedSender>> listFlagged();
+
+  /// Un-flags [sender] (normalized, as in [FlaggedSender.sender]).
+  Future<void> unflagSender(String sender);
+
+  /// Saves the flagged-senders list to Downloads.
+  Future<ExportResult> exportFlagged();
 }
 
 class MethodChannelNativeApi implements NativeApi {
@@ -314,11 +386,13 @@ class MethodChannelNativeApi implements NativeApi {
     bool? dailyCleanup,
     List<String>? customKeywords,
     List<String>? allowedSenders,
+    Set<SpamCategory>? categories,
   }) => _channel.invokeMethod('updateSettings', {
     'liveFilter': ?liveFilter,
     'dailyCleanup': ?dailyCleanup,
     'customKeywords': ?customKeywords,
     'allowedSenders': ?allowedSenders,
+    'categories': ?categories?.map((c) => c.key).toList(),
   });
 
   @override
@@ -326,8 +400,31 @@ class MethodChannelNativeApi implements NativeApi {
     final m = await _map('classify', {'text': text, 'sender': sender});
     return ClassifyResult(
       score: (m['score'] as num?)?.toDouble() ?? 0,
-      political: m['political'] == true,
+      spam: m['spam'] == true,
       reasons: ((m['reasons'] as List?) ?? const []).cast<String>(),
+      category: SpamCategory.fromKey(m['category']),
+    );
+  }
+
+  @override
+  Future<List<FlaggedSender>> listFlagged() async {
+    final list =
+        await _channel.invokeMethod<List<Object?>>('listFlagged') ?? const [];
+    return list
+        .map((e) => FlaggedSender.fromMap(e! as Map<Object?, Object?>))
+        .toList();
+  }
+
+  @override
+  Future<void> unflagSender(String sender) =>
+      _channel.invokeMethod('unflagSender', {'sender': sender});
+
+  @override
+  Future<ExportResult> exportFlagged() async {
+    final m = await _map('exportFlagged');
+    return ExportResult(
+      count: (m['count'] as num?)?.toInt() ?? 0,
+      files: ((m['files'] as List?) ?? const []).cast<String>(),
     );
   }
 }

@@ -91,7 +91,7 @@ class _CleanupPreviewScreenState extends State<CleanupPreviewScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Text(
-                    entry.body,
+                    '${entry.category.label} · ${entry.body}',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),

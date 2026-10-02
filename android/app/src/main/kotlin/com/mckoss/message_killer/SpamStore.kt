@@ -12,7 +12,7 @@ import kotlin.math.abs
  * removed from the inbox. Entries are kept for [RETENTION_DAYS] days.
  */
 class SpamStore private constructor(context: Context) :
-    SQLiteOpenHelper(context.applicationContext, "spam.db", null, 2) {
+    SQLiteOpenHelper(context.applicationContext, "spam.db", null, 3) {
 
     data class Entry(
         val id: Long,
@@ -25,6 +25,7 @@ class SpamStore private constructor(context: Context) :
         val score: Double,
         val reasons: List<String>,
         val smsId: Long?,
+        val category: String,
     ) {
         fun toMap(): Map<String, Any?> = mapOf(
             "id" to id,
@@ -37,6 +38,7 @@ class SpamStore private constructor(context: Context) :
             "score" to score,
             "reasons" to reasons,
             "smsId" to smsId,
+            "category" to category,
         )
     }
 
@@ -53,7 +55,8 @@ class SpamStore private constructor(context: Context) :
               filed_at INTEGER NOT NULL,
               score REAL NOT NULL,
               reasons TEXT NOT NULL,
-              sms_id INTEGER UNIQUE
+              sms_id INTEGER UNIQUE,
+              category TEXT NOT NULL DEFAULT 'political'
             )
             """.trimIndent()
         )
@@ -67,6 +70,10 @@ class SpamStore private constructor(context: Context) :
             db.rawQuery("SELECT DISTINCT sender FROM spam", null).use { c ->
                 while (c.moveToNext()) addTainted(db, c.getString(0))
             }
+        }
+        if (oldVersion in 1..2) {
+            // Everything filed before categories existed was political.
+            db.execSQL("ALTER TABLE spam ADD COLUMN category TEXT NOT NULL DEFAULT 'political'")
         }
     }
 
@@ -116,6 +123,26 @@ class SpamStore private constructor(context: Context) :
         } finally {
             db.endTransaction()
         }
+    }
+
+    data class FlaggedSender(val sender: String, val addedAt: Long, val messages: Int)
+
+    /** Every flagged sender (newest first) with how many of its texts are in the Spam folder. */
+    @Synchronized
+    fun flaggedSenders(): List<FlaggedSender> {
+        val counts = HashMap<String, Int>()
+        readableDatabase.rawQuery("SELECT sender FROM spam", null).use { c ->
+            while (c.moveToNext()) {
+                val key = Classifier.normalizeSender(c.getString(0))
+                counts[key] = (counts[key] ?: 0) + 1
+            }
+        }
+        return readableDatabase.rawQuery("SELECT sender, added_at FROM tainted_senders ORDER BY added_at DESC", null)
+            .use { c ->
+                buildList {
+                    while (c.moveToNext()) add(FlaggedSender(c.getString(0), c.getLong(1), counts[c.getString(0)] ?: 0))
+                }
+            }
     }
 
     @Synchronized
@@ -252,8 +279,11 @@ class SpamStore private constructor(context: Context) :
             put("score", result.score)
             put("reasons", result.reasons.joinToString("\n"))
             if (smsId != null) put("sms_id", smsId)
+            put("category", (result.category ?: Classifier.Category.POLITICAL).key)
         })
-        addTainted(writableDatabase, sender)
+        // Only political senders are flagged wholesale; a store that sent one
+        // coupon may also send prescription alerts.
+        if (result.category == Classifier.Category.POLITICAL) addTainted(writableDatabase, sender)
     }
 
     /** Same text received within [MATCH_WINDOW_MS] of [time] is treated as the same message. */
@@ -280,6 +310,7 @@ class SpamStore private constructor(context: Context) :
         score = getDouble(getColumnIndexOrThrow("score")),
         reasons = getString(getColumnIndexOrThrow("reasons")).split('\n').filter { it.isNotEmpty() },
         smsId = getColumnIndexOrThrow("sms_id").let { if (isNull(it)) null else getLong(it) },
+        category = getString(getColumnIndexOrThrow("category")),
     )
 
     companion object {

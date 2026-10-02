@@ -79,7 +79,9 @@ object Cleanup {
         val byContent = settings.classifier(taintedSenders = emptyList())
         var results = classifyAll(messages, byContent)
         val alreadyTainted = store.taintedSenders()
-        val politicalSenders = messages.filterIndexed { i, _ -> results[i].isPolitical }.map { it.address }
+        val politicalSenders = messages
+            .filterIndexed { i, _ -> results[i].category == Classifier.Category.POLITICAL }
+            .map { it.address }
         store.markTainted(politicalSenders)
 
         if (!full) {
@@ -105,8 +107,8 @@ object Cleanup {
         store.inTransaction {
             messages.forEachIndexed { i, sms ->
                 if (i % 250 == 0) progress = "Saving to the Spam folder… ${i + 1} of ${messages.size}"
-                val result = Classifier.applyTaint(results[i], sms.address, tainted)
-                if (result.isPolitical && store.fileFromInbox(sms, result)) filed++
+                val result = byContent.withTaint(results[i], sms.address, tainted)
+                if (result.isSpam && store.fileFromInbox(sms, result)) filed++
             }
         }
         settings.lastScanAt = startedAt
