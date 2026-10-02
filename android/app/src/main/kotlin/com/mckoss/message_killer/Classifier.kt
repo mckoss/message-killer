@@ -180,14 +180,27 @@ class Classifier(
             Rule("Election terms", 1.0,
                 phrase("""elections?|vote|voting|voters?|midterms?|campaign|(house|senate)\s+(control|majority)|control\s+(of\s+)?the\s+(house|senate|congress)"""), P),
             Rule("Voting logistics / get-out-the-vote", 1.0,
-                phrase("""ballots?|(in|leading|trailing)\s+the\s+polls|down[-\s]ballot|(close|tight|key|unsexy|competitive)\s+races?|flip\s+(the|a|this)\s+(house|senate|seat|district)|polling\s+(place|location)s?|early\s+voting|election\s+day|primary\s+election|swing\s+states?|get\s+out\s+the\s+vote|register(ed)?\s+to\s+vote"""), P),
+                phrase("""ballots?|(in|leading|trailing)\s+the\s+polls|down[-\s]ballot|(close|tight|key|unsexy|competitive)\s+races?|flip\s+(the|a|this)\s+(house|senate|seat|district)|flip\s+(texas|florida|georgia|arizona|nevada|north\s+carolina|pennsylvania|michigan|wisconsin|ohio|iowa|maine|alaska|montana|kansas|nebraska|virginia|new\s+hampshire|minnesota|colorado|new\s+mexico|california|new\s+york|mississippi|south\s+carolina|missouri|indiana)|polling\s+(place|location)s?|early\s+voting|election\s+day|primary\s+election|swing\s+states?|get\s+out\s+the\s+vote|register(ed)?\s+to\s+vote"""), P),
             Rule("Political office / figure", 1.0,
-                phrase("""congress(wo)?man|congress|presidential|senate|senator|governor|speaker\s+(of\s+the\s+house)?|white\s+house|president\s+\w+|trump|biden|harris|vance|obama|pelosi|schumer|mcconnell|jeffries|aoc|desantis|newsom|pritzker|klobuchar|sherrod\s+brown|warren|sanders|kennedy|rfk|fauci"""), P),
+                phrase("""congress(wo)?man|congress|presidential|senate|senator|governor|speaker\s+(of\s+the\s+house)?|white\s+house|president\s+\w+|trump|biden|harris|vance|obama|pelosi|schumer|mcconnell|jeffries|aoc|desantis|newsom|pritzker|klobuchar|sherrod\s+brown|warren|sanders|kennedy|rfk|fauci|commissioner|attorney\s+general|secretary\s+of\s+(state|the\s+\w+)|mayor|state\s+(rep|representative|senator)|candidate"""), P),
             Rule("Political survey / poll bait", 1.0,
                 Regex("""(?i:(official|national|presidential|patriot)\s+(survey|poll)|take\s+the\s+(survey|poll)|your\s+(response|vote)\s+is\s+(needed|required)|membership\s+(has\s+)?expired|you('ve|\s+have)\s+been\s+selected|do\s+you\s+(support|agree|stand\s+with|approve))|\b(Y\s*/\s*N|YES\s*/\s*NO)\b"""), P),
             // "We're polling WA residents. Can you answer a 4-question poll?"
             Rule("Polling request", 2.0,
                 phrase("""(\d|two|three|four|five|six|short|quick)[-\s]question\s+(poll|survey)|polling\s+(\w+\s+)?(residents|voters|households)|quit\s+survey"""), P),
+
+            // Urgent money pressure without the word "donate": "last-ditch request",
+            // "falling short tonight", "budget cuts", "give in the next hour".
+            Rule("Fundraising urgency", 2.0,
+                phrase("""last[-\s]ditch|fall(ing)?\s+short|budget\s+cuts?|(give|donate|chip\s+in|pitch\s+in)\s+(in|within)\s+the\s+next\s+(hour|\d+\s+(hours|minutes))|final\s+ad\s+buy|ad\s+buy|missed\s+our\s+goal|(hit|meet|reach)\s+our\s+(goal|target)\s+(tonight|by\s+midnight)"""), P),
+            // Issue-advocacy asks: "help to defend Social Security", "sign the petition".
+            Rule("Advocacy ask", 1.5,
+                phrase("""(help|join)\s+(us|me)?\s*(to\s+)?(defend|protect|fight\s+for|save|stop)|stand\s+with\s+(us|me)|sign\s+(the|our|this|my)\s+(petition|pledge)|add\s+your\s+name|tell\s+congress"""), P),
+            Rule("Political issue", 1.0,
+                phrase("""social\s+security|medicare|medicaid|abortion|reproductive\s+(rights|freedom)|gun\s+(safety|control|rights)|second\s+amendment|supreme\s+court|scotus|impeach\w*|filibuster|democracy"""), P),
+            // Signed by a person at the end of the first line: "My last-ditch request. - James Talarico"
+            Rule("Signed by a person", 1.0,
+                Regex("""^[^\n]{0,160}\s[-–—]\s?\p{Lu}[\p{L}'’]+(\s+\p{Lu}[\p{L}'’.]+){1,2}\s*(\n|$)"""), P),
 
             // Peer-to-peer texting platforms use tracking links like "site.org/l/uEel5Z".
             Rule("Campaign-style tracking link", 0.5,
@@ -197,7 +210,7 @@ class Classifier(
             // "It's Sherrod Brown." / "Amy Klobuchar here." / "Hi, I am Mia from US Speaks."
             // Weak alone (friends do this too).
             Rule("Opens with a personal introduction", 1.0,
-                Regex("""^\W*((?i:hi|hey|hello)[,!]?\s+)?(?i:it'?s|it’s|this\s+is)\s+\p{Lu}[\p{L}'’-]+(\s+\p{Lu}[\p{L}'’-]+){0,2}\s*[.!,]|^\W*\p{Lu}[\p{L}'’-]+(\s+\p{Lu}[\p{L}'’-]+){1,2}\s+here\b|^\W*((?i:hi|hey|hello)[,!]?\s+)?(?i:i\s+am|i'm|i’m|my\s+name\s+is|this\s+is)\s+\p{Lu}[\p{L}'’-]+(\s+\p{Lu}[\p{L}'’-]+)?\s*,?\s+(?i:from|with)\b"""), P),
+                Regex("""^\W*((?i:hi|hey|hello)[,!]?\s+)?(?i:it'?s|it’s|this\s+is|i'?m|i’m|i\s+am)\s+\p{Lu}[\p{L}'’-]+(\s+\p{Lu}[\p{L}'’-]+){0,2}\s*[.!,]|^\W*\p{Lu}[\p{L}'’-]+(\s+\p{Lu}[\p{L}'’-]+){1,2}\s+here\b|^\W*((?i:hi|hey|hello)[,!]?\s+)?(?i:i\s+am|i'm|i’m|my\s+name\s+is|this\s+is)\s+\p{Lu}[\p{L}'’-]+(\s+\p{Lu}[\p{L}'’-]+)?\s*,?\s+(?i:from|with)\b"""), P),
 
             // "BREAKING:", "UPDATE:", "BOYCOTT:" – alarmist all-caps openers (case-sensitive),
             // or an opening line of 3+ all-caps words ("NOBEL PEACE PRIZE ANNOUNCEMENT").
@@ -219,6 +232,11 @@ class Classifier(
                 Regex("""\b(pscrpt\.io|attn\.tv|klclick\d?\.com|kmail-lists\.com|txt\.so|i\.cvs\.com)\b""", RegexOption.IGNORE_CASE), C),
             Rule("Asks you to save a contact card", 1.0,
                 phrase("""save\s+(this|our)\s+(new\s+)?(contact|number)|contact\s+card"""), C),
+
+            // Transactional notices from the same senders (e.g. pharmacy pickups) are
+            // never treated as promotions.
+            Rule("Looks like a transactional notice (prescription, order, appointment)", -4.0,
+                phrase("""prescriptions?|rx|refills?|ready\s+for\s+pick\s*-?\s*up|pharmacy\s+(order|hours)|appointments?|order\s+(#|number|has\s+shipped|is\s+on\s+its\s+way)|has\s+shipped|out\s+for\s+delivery|confirmation\s+(number|code)"""), C),
 
             // ----------------------------------------------------- phishing / scams
             Rule("Account problem bait", 2.0,

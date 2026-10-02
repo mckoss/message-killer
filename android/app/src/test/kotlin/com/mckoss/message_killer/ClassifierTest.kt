@@ -71,7 +71,25 @@ class ClassifierTest {
         "Hi, I am Mia from US Speaks. We're polling WA residents. Can you answer a 4-question poll?\n\n1) Yes\n2) No (or QUIT Survey)",
         "BOYCOTT: TV Networks Stop Coverage of Trump Over Media Ban\n\nDo you support the media's historic BOYCOTT of Trump?\n\nY / N: dem-action.org/l/xxxxx\n\nDAC\nStop2End",
         "BREAKING: Steve Kornacki's SHOCKING prediction about House control. Read more: house-dem-victory.org/l/xxxxx\n\nHDV\nStop2End",
+        "My last-ditch request. - James Talarico\n\nI'll be blunt: We're at risk of falling short tonight. If it happens, we'll be forced to make budget cuts. That's a risk we can't afford. So we need folks who want to flip Texas to give in the next hour. Use this link: i.example.com/xxxx\n\nStop2End",
+        "I'm Martin O'Malley, former Social Security Administration commissioner. I'm asking for your help to defend Social Security >> d-so.org/l/xxxxx\n\nDSS\nEnd2End",
     )
+
+    // Pharmacy notices from a store that also sends coupons must never be filtered.
+    private val transactional = listOf(
+        "CVS Pharmacy: Your prescription is ready for pickup at 123 Main St. Reply STOP to opt out",
+        "CVS Pharmacy: Your refill is ready. Questions? Call 800-555-0100. Reply HELP for help, STOP to end",
+        "CVS: Your order #12345 has shipped. Track it: cvs.com/track. Reply STOP to opt out",
+        "Walgreens: Reminder of your appointment tomorrow at 10:00 AM. Reply C to confirm, STOP to end",
+    )
+
+    @Test
+    fun neverFiltersTransactionalNotices() {
+        for (text in transactional) {
+            val r = classifier.classify(text, sender = "287898")
+            assertFalse("score=${r.score}, ${r.category} ${r.reasons}: $text", r.isSpam)
+        }
+    }
 
     private val commercial = listOf(
         "birddogs: Last Call on Sharehouse Shorts!\n\nGet 'em now, we aren't making more of these...\n\nhttps://birddogs.pscrpt.io/xxxx\n\n...until next summer.\n\np.s. sorry about the incorrect contact card in our last text. Save this new one, I pinky promise it works.",
