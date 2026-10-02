@@ -16,6 +16,8 @@ class AppStatus {
     required this.totalSpam,
     required this.pendingDelete,
     required this.silencedToday,
+    this.restorable = 0,
+    this.version = '',
     required this.retentionDays,
   });
 
@@ -30,6 +32,12 @@ class AppStatus {
   final int totalSpam;
   final int pendingDelete;
   final int silencedToday;
+
+  /// Deleted texts that no longer count as spam and can be put back.
+  final int restorable;
+
+  /// "0.16.0 (build 42)".
+  final String version;
   final int retentionDays;
 
   /// The user's normal messaging app, for "switch back to ..." prompts.
@@ -51,6 +59,8 @@ class AppStatus {
       totalSpam: (counts['total'] as num?)?.toInt() ?? 0,
       pendingDelete: (counts['pending'] as num?)?.toInt() ?? 0,
       silencedToday: (counts['silencedToday'] as num?)?.toInt() ?? 0,
+      restorable: (counts['restorable'] as num?)?.toInt() ?? 0,
+      version: m['version'] as String? ?? '',
       retentionDays: (m['retentionDays'] as num?)?.toInt() ?? 90,
     );
   }
@@ -280,6 +290,13 @@ abstract class NativeApi {
   });
   Future<ClassifyResult> classify(String text, {String? sender});
 
+  /// Deleted texts that no longer count as spam under the current rules.
+  Future<List<SpamEntry>> listRestorable();
+
+  /// Puts Spam folder entries back in the inbox (needs the default SMS role).
+  /// Returns how many were restored.
+  Future<int> restore(List<int> ids);
+
   /// Senders flagged for political texts, newest first.
   Future<List<FlaggedSender>> listFlagged();
 
@@ -404,6 +421,22 @@ class MethodChannelNativeApi implements NativeApi {
       reasons: ((m['reasons'] as List?) ?? const []).cast<String>(),
       category: SpamCategory.fromKey(m['category']),
     );
+  }
+
+  @override
+  Future<List<SpamEntry>> listRestorable() async {
+    final list =
+        await _channel.invokeMethod<List<Object?>>('listRestorable') ??
+        const [];
+    return list
+        .map((e) => SpamEntry.fromMap(e! as Map<Object?, Object?>))
+        .toList();
+  }
+
+  @override
+  Future<int> restore(List<int> ids) async {
+    final m = await _map('restore', {'ids': ids});
+    return (m['restored'] as num?)?.toInt() ?? 0;
   }
 
   @override

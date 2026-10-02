@@ -145,6 +145,19 @@ class SpamStore private constructor(context: Context) :
             }
     }
 
+    /**
+     * Replaces the flagged-sender list with [senders] (normalized), keeping the
+     * original flag time of senders that stay. Used by full rescans so a sender
+     * flagged by an old rule (e.g. a bank alert mentioning ActBlue) un-flags itself.
+     */
+    @Synchronized
+    fun replaceTainted(senders: Set<String>) = inTransaction {
+        val db = writableDatabase
+        val current = taintedSenders()
+        for (s in current - senders) db.delete("tainted_senders", "sender = ?", arrayOf(s))
+        for (s in senders - current) addTainted(db, s)
+    }
+
     @Synchronized
     fun untaint(sender: String) {
         writableDatabase.delete("tainted_senders", "sender = ?", arrayOf(Classifier.normalizeSender(sender)))

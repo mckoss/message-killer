@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../format.dart';
 import '../native_api.dart';
 import 'allow_sender.dart';
+import 'cleanup_flow.dart';
 import 'export_action.dart';
 
 class SpamFolderScreen extends StatefulWidget {
@@ -195,6 +196,19 @@ class SpamEntryScreen extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 24),
+          if (entry.status == SpamStatus.deleted) ...[
+            FilledButton.tonalIcon(
+              icon: const Icon(Icons.restore),
+              label: const Text('Restore to inbox'),
+              onPressed: () async {
+                final navigator = Navigator.of(context);
+                if (await runRestore(context, api, [entry.id]) > 0) {
+                  navigator.pop(true);
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
           OutlinedButton.icon(
             icon: const Icon(Icons.verified_user_outlined),
             label: const Text('Not spam: allow sender'),

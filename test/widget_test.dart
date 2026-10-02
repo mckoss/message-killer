@@ -383,4 +383,32 @@ void main() {
     expect(api.calls, contains('unflag:5042944686'));
     expect(find.text('(504) 294-4686'), findsNothing);
   });
+
+  testWidgets('restore: home card lists texts and restores them', (
+    tester,
+  ) async {
+    final api = FakeNativeApi()
+      ..restorable = [
+        spamEntry(7, status: SpamStatus.deleted, sender: '692632'),
+        spamEntry(8, status: SpamStatus.deleted, sender: '692632'),
+      ];
+    await tester.pumpWidget(MessageKillerApp(api: api));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('2 deleted texts no longer look like spam'),
+      findsOneWidget,
+    );
+    expect(find.text('Message Killer 0.16.0 (build 1)'), findsOneWidget);
+    await tester.tap(find.text('2 deleted texts no longer look like spam'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Restore 2'));
+    await pumpABit(tester);
+
+    expect(
+      api.calls,
+      containsAllInOrder(['requestDefaultSmsRole', 'restore:7,8']),
+    );
+    expect(find.text('Restored 2 texts to your inbox'), findsOneWidget);
+  });
 }

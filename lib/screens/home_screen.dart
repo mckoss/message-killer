@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../format.dart';
 import '../native_api.dart';
 import 'cleanup_flow.dart';
+import 'restore_screen.dart';
 import 'settings_screen.dart';
 import 'spam_folder_screen.dart';
 
@@ -89,6 +90,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 padding: const EdgeInsets.all(16),
                 children: [
                   if (status.isDefaultSmsApp) _stillDefaultCard(status),
+                  if (status.restorable > 0) _restoreCard(status),
                   if (!status.smsPermission ||
                       !status.notificationAccess ||
                       !status.contactsPermission)
@@ -96,9 +98,32 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   _liveFilterCard(status),
                   _spamFolderCard(status),
                   _cleanupCard(status),
+                  if (status.version.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Text(
+                        'Message Killer ${status.version}',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _restoreCard(AppStatus status) {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.restore),
+        title: Text(
+          '${plural(status.restorable, 'deleted text')} no longer look like spam',
+        ),
+        subtitle: const Text('Review and put them back in your inbox'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _open(RestoreScreen(api: api)),
+      ),
     );
   }
 

@@ -81,6 +81,11 @@ class MainActivity : FlutterActivity() {
                 mapOf("deleted" to deleted, "failed" to failed)
             }
             "listSpam" -> background(result) { store.list().map { it.toMap() } }
+            "listRestorable" -> background(result) { Cleanup.restorable(this).map { it.toMap() } }
+            "restore" -> background(result) {
+                val ids = (call.argument<List<Number>>("ids") ?: emptyList()).map { it.toLong() }
+                mapOf("restored" to Cleanup.restore(this, ids), "requested" to ids.size)
+            }
             "listFlagged" -> background(result) {
                 store.flaggedSenders().map { mapOf("sender" to it.sender, "addedAt" to it.addedAt, "messages" to it.messages) }
             }
@@ -164,9 +169,18 @@ class MainActivity : FlutterActivity() {
             "previousDefaultSmsApp" to appLabel(previous),
             "liveFilter" to settings.liveFilter,
             "dailyCleanup" to settings.dailyCleanup,
-            "counts" to store.counts(),
+            "counts" to store.counts() + ("restorable" to Cleanup.restorable(this).size),
+            "version" to versionInfo(),
             "retentionDays" to SpamStore.RETENTION_DAYS,
         )
+    }
+
+    /** "0.16.0 (build 42)" from the installed package. */
+    private fun versionInfo(): String = try {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        "${info.versionName} (build ${info.longVersionCode})"
+    } catch (e: PackageManager.NameNotFoundException) {
+        "unknown"
     }
 
     private fun hasNotificationAccess(): Boolean {

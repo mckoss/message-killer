@@ -47,11 +47,7 @@ Future<void> runCleanup(
   );
   if (confirmed != true) return;
 
-  var granted = await api.requestDefaultSmsRole();
-  if (!granted && context.mounted) {
-    granted = await _switchManually(context, api);
-  }
-  if (!granted) {
+  if (!context.mounted || !await _becomeDefault(context, api)) {
     messenger.showSnackBar(
       const SnackBar(
         content: Text(
@@ -122,6 +118,54 @@ Future<T> _withProgress<T>(
   }
 }
 
+/// Asks for the default SMS role, with the manual fallback.
+Future<bool> _becomeDefault(BuildContext context, NativeApi api) async {
+  var granted = await api.requestDefaultSmsRole();
+  if (!granted && context.mounted) {
+    granted = await _switchManually(context, api);
+  }
+  return granted;
+}
+
+/// Puts deleted texts back in the inbox: briefly become the default SMS app,
+/// write them back, then switch back. Returns how many were restored.
+Future<int> runRestore(
+  BuildContext context,
+  NativeApi api,
+  List<int> ids,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final navigator = Navigator.of(context);
+  if (ids.isEmpty) return 0;
+  if (!await _becomeDefault(context, api)) {
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Nothing restored: Message Killer needs to be the default SMS app briefly to restore texts.',
+        ),
+      ),
+    );
+    return 0;
+  }
+  if (!context.mounted) return 0;
+  final restored = await _withProgress(
+    context,
+    api,
+    'Restoring',
+    () => api.restore(ids),
+  );
+  await navigator.push(
+    MaterialPageRoute<void>(
+      fullscreenDialog: true,
+      builder: (_) => SwitchBackScreen(
+        api: api,
+        headline: 'Restored ${plural(restored, 'text')} to your inbox',
+      ),
+    ),
+  );
+  return restored;
+}
+
 /// Fallback when the system prompt is refused or never appears: send the user to
 /// Default apps to pick Message Killer by hand, then check when they come back.
 Future<bool> _switchManually(BuildContext context, NativeApi api) async {
@@ -178,10 +222,18 @@ class _ResumeObserver extends WidgetsBindingObserver {
 
 /// Shown while Message Killer is the default SMS app; hard to dismiss until the user switches back.
 class SwitchBackScreen extends StatefulWidget {
-  const SwitchBackScreen({super.key, required this.api, this.result});
+  const SwitchBackScreen({
+    super.key,
+    required this.api,
+    this.result,
+    this.headline,
+  });
 
   final NativeApi api;
   final DeleteResult? result;
+
+  /// Shown instead of the delete summary (e.g. after a restore).
+  final String? headline;
 
   @override
   State<SwitchBackScreen> createState() => _SwitchBackScreenState();
@@ -235,7 +287,20 @@ class _SwitchBackScreenState extends State<SwitchBackScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (result != null) ...[
+              if (widget.headline case final headline?) ...[
+                Icon(
+                  Icons.check_circle,
+                  size: 64,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  headline,
+                  style: theme.textTheme.headlineSmall,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
+              ] else if (result != null) ...[
                 Icon(
                   Icons.check_circle,
                   size: 64,

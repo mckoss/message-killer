@@ -32,6 +32,19 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # Every published build must carry a new semantic version (pubspec.yaml).
+      - name: Check version
+        id: version
+        if: steps.project.outputs.exists == 'true'
+        run: |
+          VERSION=$(sed -n 's/^version: *\([0-9][0-9.]*\).*/\1/p' pubspec.yaml)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::Version $VERSION was already released. Bump 'version:' in pubspec.yaml."
+            exit 1
+          fi
+          echo "Building version $VERSION"
+
       - uses: actions/setup-java@v4
         if: steps.project.outputs.exists == 'true'
         with:
@@ -76,7 +89,9 @@ jobs:
       - name: Build APK
         if: steps.project.outputs.exists == 'true'
         run: |
-          flutter build apk --release --build-number=${{ github.run_number }}
+          flutter build apk --release \
+            --build-name=${{ steps.version.outputs.version }} \
+            --build-number=${{ github.run_number }}
           cp build/app/outputs/flutter-apk/app-release.apk message-killer.apk
 
       - name: Native unit tests (classifier)
@@ -93,10 +108,13 @@ jobs:
           gh release create prototype message-killer.apk \
             --prerelease \
             --target "$GITHUB_SHA" \
-            --title "Prototype build #${{ github.run_number }}" \
-            --notes "Built from \`${GITHUB_REF_NAME}\` @ ${GITHUB_SHA::7}.
+            --title "Message Killer v${{ steps.version.outputs.version }} (build #${{ github.run_number }})" \
+            --notes "Version ${{ steps.version.outputs.version }}, built from \`${GITHUB_REF_NAME}\` @ ${GITHUB_SHA::7}.
 
           Download on your phone: https://github.com/${GITHUB_REPOSITORY}/releases/download/prototype/message-killer.apk"
+          # Record the version so it can't be published twice.
+          git tag "v${{ steps.version.outputs.version }}" "$GITHUB_SHA"
+          git push origin "v${{ steps.version.outputs.version }}"
 
       - uses: actions/upload-artifact@v4
         if: steps.project.outputs.exists == 'true'

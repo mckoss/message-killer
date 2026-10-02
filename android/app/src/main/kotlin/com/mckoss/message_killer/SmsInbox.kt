@@ -218,15 +218,20 @@ object SmsInbox {
     }
 
     /** Writes an incoming SMS to the inbox (our duty while we hold the default SMS role). */
-    fun insertIncoming(context: Context, address: String, body: String, date: Long, subscriptionId: Int) {
-        context.contentResolver.insert(Telephony.Sms.Inbox.CONTENT_URI, ContentValues().apply {
-            put(Telephony.Sms.ADDRESS, address)
-            put(Telephony.Sms.BODY, body)
-            put(Telephony.Sms.DATE, date)
-            put(Telephony.Sms.DATE_SENT, date)
-            put(Telephony.Sms.READ, 0)
-            put(Telephony.Sms.SEEN, 0)
-            put(Telephony.Sms.SUBSCRIPTION_ID, subscriptionId)
-        })
-    }
+    /**
+     * Writes a text to the inbox (our duty while we hold the default SMS role, and
+     * how restores work). Returns false if the provider refused.
+     */
+    fun insertIncoming(
+        context: Context, address: String, body: String, date: Long,
+        subscriptionId: Int = -1, read: Boolean = false,
+    ): Boolean = context.contentResolver.insert(Telephony.Sms.Inbox.CONTENT_URI, ContentValues().apply {
+        put(Telephony.Sms.ADDRESS, address)
+        put(Telephony.Sms.BODY, body)
+        put(Telephony.Sms.DATE, date)
+        put(Telephony.Sms.DATE_SENT, date)
+        put(Telephony.Sms.READ, if (read) 1 else 0)
+        put(Telephony.Sms.SEEN, if (read) 1 else 0)
+        if (subscriptionId != -1) put(Telephony.Sms.SUBSCRIPTION_ID, subscriptionId)
+    }) != null
 }

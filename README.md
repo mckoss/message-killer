@@ -22,7 +22,12 @@ RCS chat keeps working.
   filtered by category. Commercial and phishing texts are judged one message
   at a time; only political senders get flagged wholesale.
 - **Flagged senders:** once a number sends one political text, everything
-  else from that number is filtered too (except verification codes). "Allow
+  else from that number is filtered too (except verification codes, bank/card
+  alerts, and pharmacy/order/appointment notices). The list is rebuilt on
+  every full rescan, so a wrongly flagged sender un-flags itself.
+- **Restore:** deleted texts that no longer count as spam under the current
+  rules are listed on the home screen and can be put back in your inbox; any
+  deleted text can also be restored from its Spam folder entry. "Allow
   sender" undoes this. The list is viewable and exportable under *Filter
   settings → Flagged senders*.
 - **Contacts are never filtered:** with Contacts access, texts from anyone in
@@ -62,6 +67,12 @@ RCS chat keeps working.
 
    RCS chats can be silenced but not deleted, because Android doesn't give
    other apps access to them.
+
+## Versions
+
+The app version (e.g. `0.16.0 (build 42)`) is shown at the bottom of the home
+screen and in the release title. It's a semantic version from `pubspec.yaml`,
+bumped on every published build.
 
 ## Requirements
 

@@ -33,6 +33,7 @@ class FakeNativeApi implements NativeApi {
   List<String> allowedSenders = [];
   Set<SpamCategory> categories = {...SpamCategory.values};
   List<FlaggedSender> flagged = [];
+  List<SpamEntry> restorable = [];
   List<SpamEntry> spam;
   String? launchAction;
   final calls = <String>[];
@@ -51,6 +52,8 @@ class FakeNativeApi implements NativeApi {
     pendingDelete: pending,
     silencedToday: spam.where((e) => e.status == SpamStatus.silenced).length,
     retentionDays: 90,
+    restorable: restorable.length,
+    version: '0.16.0 (build 1)',
   );
 
   @override
@@ -194,6 +197,17 @@ class FakeNativeApi implements NativeApi {
           ? ['Fundraising platform (ActBlue/WinRed/Anedot)']
           : [],
     );
+  }
+
+  @override
+  Future<List<SpamEntry>> listRestorable() async => List.of(restorable);
+
+  @override
+  Future<int> restore(List<int> ids) async {
+    calls.add('restore:${ids.join(',')}');
+    if (!isDefaultSmsApp) return 0;
+    restorable.removeWhere((e) => ids.contains(e.id));
+    return ids.length;
   }
 
   @override

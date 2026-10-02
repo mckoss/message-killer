@@ -81,6 +81,10 @@ class ClassifierTest {
         "CVS Pharmacy: Your refill is ready. Questions? Call 800-555-0100. Reply HELP for help, STOP to end",
         "CVS: Your order #12345 has shipped. Track it: cvs.com/track. Reply STOP to opt out",
         "Walgreens: Reminder of your appointment tomorrow at 10:00 AM. Reply C to confirm, STOP to end",
+        // A bank alert for the user's own political donation flagged the bank's number once.
+        "BofA: Credit card charge \$515.00, credit card - 4111, ACTBLUE  ALEXANDRIA.OC, 06/03/26.  STOP to end account texts",
+        "BofA: (Declined) Credit card charge \$1,524.29, credit card - 4111, Quality Plumbing, 04/02/26.  STOP to end account texts",
+        "Chase: A \$25.00 debit card transaction to WINRED was made on your account ending in 1234.",
     )
 
     @Test
@@ -88,6 +92,9 @@ class ClassifierTest {
         for (text in transactional) {
             val r = classifier.classify(text, sender = "287898")
             assertFalse("score=${r.score}, ${r.category} ${r.reasons}: $text", r.isSpam)
+            // Not even a flagged sender can hide these.
+            val tainted = Classifier(taintedSenders = listOf("287898")).classify(text, sender = "287898")
+            assertFalse("tainted ${tainted.score} ${tainted.reasons}: $text", tainted.isSpam)
         }
     }
 
@@ -139,11 +146,11 @@ class ClassifierTest {
     @Test
     fun taintOnlyAppliesToPolitical() {
         val c = Classifier(taintedSenders = listOf("5042944686"))
-        val r = c.classify("Your prescription is ready for pickup.", sender = "+15042944686")
+        val r = c.classify("Thanks for being with us this year!", sender = "+15042944686")
         assertEquals(Classifier.Category.POLITICAL, r.category)
         val noPolitical = Classifier(taintedSenders = listOf("5042944686"),
             enabled = setOf(Classifier.Category.COMMERCIAL, Classifier.Category.PHISHING))
-        assertFalse(noPolitical.classify("Your prescription is ready for pickup.", sender = "+15042944686").isSpam)
+        assertFalse(noPolitical.classify("Thanks for being with us this year!", sender = "+15042944686").isSpam)
     }
 
     @Test

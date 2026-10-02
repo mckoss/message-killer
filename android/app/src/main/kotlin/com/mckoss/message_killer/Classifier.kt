@@ -105,7 +105,7 @@ class Classifier(
          * Bump when scan logic changes in ways the rule list doesn't capture
          * (e.g. which messages are read, how senders are matched).
          */
-        const val SCAN_LOGIC_VERSION = 2
+        const val SCAN_LOGIC_VERSION = 3
 
         private val P = setOf(Category.POLITICAL)
         private val C = setOf(Category.COMMERCIAL)
@@ -233,10 +233,10 @@ class Classifier(
             Rule("Asks you to save a contact card", 1.0,
                 phrase("""save\s+(this|our)\s+(new\s+)?(contact|number)|contact\s+card"""), C),
 
-            // Transactional notices from the same senders (e.g. pharmacy pickups) are
-            // never treated as promotions.
+            // Transactional notices (e.g. pharmacy pickups) are never treated as
+            // promotions or political, even from a flagged sender.
             Rule("Looks like a transactional notice (prescription, order, appointment)", -4.0,
-                phrase("""prescriptions?|rx|refills?|ready\s+for\s+pick\s*-?\s*up|pharmacy\s+(order|hours)|appointments?|order\s+(#|number|has\s+shipped|is\s+on\s+its\s+way)|has\s+shipped|out\s+for\s+delivery|confirmation\s+(number|code)"""), C),
+                phrase("""prescriptions?|rx|refills?|ready\s+for\s+pick\s*-?\s*up|pharmacy\s+(order|hours)|your\s+(next\s+)?appointment|appointment\s+(reminder|confirmed|confirmation|is\s+(on|at|scheduled|tomorrow|today)|tomorrow|today)|reminder\s+of\s+your\s+appointment|order\s+(#|number|has\s+shipped|is\s+on\s+its\s+way)|has\s+shipped|out\s+for\s+delivery|confirmation\s+(number|code)"""), P + C),
 
             // ----------------------------------------------------- phishing / scams
             Rule("Account problem bait", 2.0,
@@ -261,6 +261,12 @@ class Classifier(
                 Regex("""\b(bit\.ly|tinyurl\.com|rb\.gy|t\.co|ow\.ly|wnrd\.us|is\.gd|cutt\.ly)/""", RegexOption.IGNORE_CASE), ALL),
             // Bulk-marketing opt-out footer – weak on its own.
             Rule("Bulk-text opt-out footer", 1.0, Regex(FOOTER, RegexOption.IGNORE_CASE), P + C),
+
+            // Safety valve: bank / card alerts are never political or promotional, even
+            // when the merchant is ActBlue ("Credit card charge $515.00 … ACTBLUE").
+            // Phishing is left alone: scams imitate these.
+            Rule("Looks like a bank or card alert (never hidden)", -10.0,
+                phrase("""(credit|debit)\s+card\s+(charge|purchase|transaction|payment)|card\s+(ending|-)\s*(in\s+)?\d{4}|account\s+ending\s+(in\s+)?\d{4}|(charge|purchase|transaction|withdrawal|deposit)\s+(of|for)\s+\$\d|\(declined\)|end\s+account\s+texts"""), P + C),
 
             // Safety valve: never hide one-time codes or verification messages.
             Rule("Looks like a verification code (never hidden)", -10.0,

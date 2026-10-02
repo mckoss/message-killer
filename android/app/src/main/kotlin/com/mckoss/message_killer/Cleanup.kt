@@ -82,7 +82,22 @@ object Cleanup {
         val politicalSenders = messages
             .filterIndexed { i, _ -> results[i].category == Classifier.Category.POLITICAL }
             .map { it.address }
-        store.markTainted(politicalSenders)
+        if (full) {
+            // Rebuild the flagged list from scratch under the current rules: inbox
+            // texts plus everything already in the Spam folder (deleted texts only
+            // live there). A sender flagged by an old rule un-flags itself.
+            progress = "Re-checking flagged senders…"
+            val fromSpamFolder = store.list().filter {
+                byContent.classify(it.body, it.sender).category == Classifier.Category.POLITICAL
+            }.map { it.sender }
+            store.replaceTainted((politicalSenders + fromSpamFolder).map(Classifier::normalizeSender).toSet())
+            // Texts waiting to be deleted that no longer count as spam stay in the inbox.
+            val tainted = store.taintedSenders()
+            store.removePendingWhere { !byContent.withTaint(byContent.classify(it.body, it.sender), it.sender, tainted).isSpam }
+            lap("rebuilt flagged senders: ${tainted.size}")
+        } else {
+            store.markTainted(politicalSenders)
+        }
 
         if (!full) {
             // Senders flagged since the last scan (here or by the live filter) may
@@ -117,6 +132,46 @@ object Cleanup {
         lap("filed $filed")
         progress = ""
         return ScanResult(messages.size, filed, store.pendingSmsIds().size)
+    }
+
+    /**
+     * Deleted texts that no longer count as spam under the current rules (e.g.
+     * bank alerts deleted because of an old rule) and so can be put back.
+     */
+    fun restorable(context: Context): List<SpamStore.Entry> {
+        val settings = AppSettings(context)
+        val store = SpamStore.get(context)
+        val byContent = settings.classifier(taintedSenders = emptyList())
+        val tainted = store.taintedSenders()
+        val contacts = ContactsChecker(context)
+        return store.list().filter { e ->
+            e.status == SpamStore.STATUS_DELETED && (
+                settings.isAllowed(e.sender) || contacts.isContact(e.sender) ||
+                    !byContent.withTaint(byContent.classify(e.body, e.sender), e.sender, tainted).isSpam
+                )
+        }
+    }
+
+    /**
+     * Writes Spam folder entries back into the inbox (as regular texts, already
+     * read) and removes them from the Spam folder. Requires the default SMS role.
+     * Returns how many were restored.
+     */
+    @Synchronized
+    fun restore(context: Context, ids: Collection<Long>): Int {
+        if (!isDefaultSmsApp(context)) return 0
+        val store = SpamStore.get(context)
+        var restored = 0
+        ids.forEachIndexed { i, id ->
+            if (i % 25 == 0) progress = "Restoring… $i of ${ids.size}"
+            val e = store.get(id) ?: return@forEachIndexed
+            if (SmsInbox.insertIncoming(context, e.sender, e.body, e.messageTime, read = true)) {
+                store.remove(id)
+                restored++
+            }
+        }
+        progress = ""
+        return restored
     }
 
     private fun notFromContacts(all: List<SmsInbox.Message>, contacts: ContactsChecker) =
