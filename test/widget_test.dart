@@ -410,8 +410,8 @@ void main() {
       containsAllInOrder(['requestDefaultSmsRole', 'restore:7,8']),
     );
     expect(find.text('Restored 2 texts to your inbox'), findsOneWidget);
-    // "Always allow 692632" is on by default.
-    expect(api.allowedSenders, ['692632']);
+    // "Always allow" is off unless switched on per number.
+    expect(api.allowedSenders, isEmpty);
   });
 
   testWidgets('restore: uncheck a text to confirm it as spam', (tester) async {
@@ -425,10 +425,13 @@ void main() {
     await tester.tap(find.text('2 deleted texts no longer look like spam'));
     await tester.pumpAndSettle();
 
-    // Uncheck the Red Cross text: it's really spam.
-    await tester.tap(find.textContaining('90999 ·'));
+    // Uncheck the Red Cross number (all its texts): they're really spam.
+    await tester.tap(find.text('90999'));
     await tester.pumpAndSettle();
-    expect(find.text('Always allow 692632'), findsOneWidget);
+    expect(find.text('Restore 0 of 1 text'), findsOneWidget);
+    // Allow-list BofA only.
+    await tester.tap(find.text('Always allow 692632'));
+    await tester.pumpAndSettle();
     await tester.tap(
       find.widgetWithText(FilledButton, 'Restore 1 · keep 1 as spam'),
     );

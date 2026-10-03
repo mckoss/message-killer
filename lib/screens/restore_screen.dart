@@ -5,8 +5,9 @@ import '../native_api.dart';
 import 'cleanup_flow.dart';
 
 /// Deleted texts that no longer count as spam (e.g. bank alerts removed by an
-/// older rule). Check the ones to put back; unchecked ones are confirmed as
-/// spam and never offered again.
+/// older rule), grouped by sender. Check the ones to put back (per text or per
+/// number); unchecked ones are confirmed as spam and never offered again. Each
+/// number can separately be put on the allow list.
 class RestoreScreen extends StatefulWidget {
   const RestoreScreen({super.key, required this.api});
 
@@ -22,8 +23,8 @@ class _RestoreScreenState extends State<RestoreScreen> {
   /// Ids checked for restore (all, initially).
   final _selected = <int>{};
 
-  /// Also put the restored texts' senders on the allow list (e.g. your bank).
-  bool _allowSenders = true;
+  /// Senders to put on the allow list (e.g. your bank); off by default.
+  final _allow = <String>{};
 
   @override
   void initState() {
@@ -61,8 +62,9 @@ class _RestoreScreenState extends State<RestoreScreen> {
       widget.api,
       restore.map((e) => e.id).toList(),
       afterRestore: (_) async {
-        if (!_allowSenders) return;
-        for (final sender in restore.map((e) => e.sender).toSet()) {
+        // Only numbers you switched on, and only if something of theirs was restored.
+        final restoredSenders = restore.map((e) => e.sender).toSet();
+        for (final sender in _allow.intersection(restoredSenders)) {
           if (sender.isNotEmpty) await widget.api.allowSender(sender);
         }
       },
@@ -74,6 +76,56 @@ class _RestoreScreenState extends State<RestoreScreen> {
     }
   }
 
+  /// One sender's header (restore-all checkbox, "Always allow" switch) and texts.
+  List<Widget> _senderSection(List<SpamEntry> group) {
+    final sender = group.first.sender;
+    final ids = group.map((e) => e.id).toSet();
+    final checked = ids.where(_selected.contains).length;
+    final theme = Theme.of(context);
+    return [
+      const Divider(height: 1),
+      CheckboxListTile(
+        tileColor: theme.colorScheme.surfaceContainerHighest,
+        tristate: true,
+        value: checked == ids.length ? true : (checked == 0 ? false : null),
+        onChanged: (_) => setState(() {
+          checked == ids.length
+              ? _selected.removeAll(ids)
+              : _selected.addAll(ids);
+        }),
+        title: Text(
+          sender.isEmpty ? 'Unknown sender' : sender,
+          style: theme.textTheme.titleMedium,
+        ),
+        subtitle: Text('Restore $checked of ${plural(ids.length, 'text')}'),
+      ),
+      if (sender.isNotEmpty)
+        SwitchListTile(
+          dense: true,
+          contentPadding: const EdgeInsets.only(left: 32, right: 16),
+          title: Text('Always allow $sender'),
+          subtitle: const Text('Never filter this number again'),
+          value: _allow.contains(sender),
+          onChanged: (on) => setState(() {
+            on ? _allow.add(sender) : _allow.remove(sender);
+          }),
+        ),
+      for (final e in group)
+        CheckboxListTile(
+          contentPadding: const EdgeInsets.only(left: 32, right: 16),
+          value: _selected.contains(e.id),
+          onChanged: (on) => setState(() {
+            on == true ? _selected.add(e.id) : _selected.remove(e.id);
+          }),
+          title: Text(
+            formatShortDate(e.messageTime),
+            style: theme.textTheme.bodySmall,
+          ),
+          subtitle: Text(e.body, maxLines: 3, overflow: TextOverflow.ellipsis),
+        ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final entries = _entries;
@@ -81,8 +133,6 @@ class _RestoreScreenState extends State<RestoreScreen> {
     final restoreCount =
         entries?.where((e) => _selected.contains(e.id)).length ?? 0;
     final keepCount = (entries?.length ?? 0) - restoreCount;
-    final restoreSenders =
-        entries?.where((e) => _selected.contains(e.id)).toList() ?? const [];
 
     return Scaffold(
       appBar: AppBar(
@@ -103,43 +153,25 @@ class _RestoreScreenState extends State<RestoreScreen> {
       ),
       body: entries == null
           ? const Center(child: CircularProgressIndicator())
-          : ListView.separated(
-              itemCount: entries.length + 1,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      entries.isEmpty
-                          ? 'Nothing to restore.'
-                          : '${plural(entries.length, 'deleted text')} no longer ${entries.length == 1 ? 'looks' : 'look'} like spam '
-                                'under the current rules. Check the ones to put back in your inbox. '
-                                'Unchecked texts are confirmed as spam and won\'t be offered again. '
-                                '(Picture messages come back as text only.)',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                  );
-                }
-                final e = entries[index - 1];
-                return CheckboxListTile(
-                  value: _selected.contains(e.id),
-                  onChanged: (on) => setState(() {
-                    on == true ? _selected.add(e.id) : _selected.remove(e.id);
-                  }),
-                  title: Text(
-                    '${e.sender.isEmpty ? 'Unknown sender' : e.sender} · '
-                    '${formatShortDate(e.messageTime)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+          : ListView(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    entries.isEmpty
+                        ? 'Nothing to restore.'
+                        : '${plural(entries.length, 'deleted text')} no longer '
+                              '${entries.length == 1 ? 'looks' : 'look'} like spam under the current rules. '
+                              'Check the texts (or whole numbers) to put back in your inbox; unchecked '
+                              'texts are confirmed as spam and won\'t be offered again. Switch on '
+                              '"Always allow" for numbers you never want filtered. '
+                              '(Picture messages come back as text only.)',
+                    style: theme.textTheme.bodyMedium,
                   ),
-                  subtitle: Text(
-                    e.body,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                );
-              },
+                ),
+                for (final group in _bySender(entries))
+                  ..._senderSection(group),
+              ],
             ),
       bottomNavigationBar: entries == null || entries.isEmpty
           ? null
@@ -150,21 +182,6 @@ class _RestoreScreenState extends State<RestoreScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (restoreCount > 0)
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        value: _allowSenders,
-                        onChanged: (v) =>
-                            setState(() => _allowSenders = v ?? true),
-                        title: Text(
-                          'Always allow ${_senders(restoreSenders)}',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: const Text(
-                          'Never filter these senders again',
-                        ),
-                      ),
                     FilledButton.icon(
                       icon: Icon(restoreCount > 0 ? Icons.restore : Icons.done),
                       label: Text(switch ((restoreCount, keepCount)) {
@@ -183,17 +200,11 @@ class _RestoreScreenState extends State<RestoreScreen> {
   }
 }
 
-/// "692632" / "692632 and 90999" / "3 senders".
-String _senders(List<SpamEntry> entries) {
-  final senders = entries
-      .map((e) => e.sender)
-      .where((s) => s.isNotEmpty)
-      .toSet()
-      .toList();
-  return switch (senders.length) {
-    0 => 'these senders',
-    1 => senders.first,
-    2 => '${senders[0]} and ${senders[1]}',
-    _ => '${senders.length} senders',
-  };
+/// Entries grouped by sender, biggest groups first.
+List<List<SpamEntry>> _bySender(List<SpamEntry> entries) {
+  final groups = <String, List<SpamEntry>>{};
+  for (final e in entries) {
+    groups.putIfAbsent(e.sender, () => []).add(e);
+  }
+  return groups.values.toList()..sort((a, b) => b.length.compareTo(a.length));
 }
