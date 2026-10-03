@@ -413,4 +413,52 @@ void main() {
     // "Always allow 692632" is on by default.
     expect(api.allowedSenders, ['692632']);
   });
+
+  testWidgets('restore: uncheck a text to confirm it as spam', (tester) async {
+    final api = FakeNativeApi()
+      ..restorable = [
+        spamEntry(7, status: SpamStatus.deleted, sender: '692632'),
+        spamEntry(9, status: SpamStatus.deleted, sender: '90999'),
+      ];
+    await tester.pumpWidget(MessageKillerApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('2 deleted texts no longer look like spam'));
+    await tester.pumpAndSettle();
+
+    // Uncheck the Red Cross text: it's really spam.
+    await tester.tap(find.textContaining('90999 ·'));
+    await tester.pumpAndSettle();
+    expect(find.text('Always allow 692632'), findsOneWidget);
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Restore 1 · keep 1 as spam'),
+    );
+    await pumpABit(tester);
+
+    expect(
+      api.calls,
+      containsAllInOrder(['confirm:9', 'requestDefaultSmsRole', 'restore:7']),
+    );
+    expect(api.allowedSenders, ['692632']);
+  });
+
+  testWidgets('restore: "None" then keep all as spam', (tester) async {
+    final api = FakeNativeApi()
+      ..restorable = [
+        spamEntry(9, status: SpamStatus.deleted, sender: '90999'),
+      ];
+    await tester.pumpWidget(MessageKillerApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1 deleted text no longer looks like spam'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'None'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Keep all 1 text as spam'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(api.calls, contains('confirm:9'));
+    expect(api.calls, isNot(contains('requestDefaultSmsRole')));
+    expect(api.restorable, isEmpty);
+  });
 }

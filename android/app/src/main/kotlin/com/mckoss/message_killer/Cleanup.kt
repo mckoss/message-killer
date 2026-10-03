@@ -145,7 +145,7 @@ object Cleanup {
         val tainted = store.taintedSenders()
         val contacts = ContactsChecker(context)
         return store.list().filter { e ->
-            e.status == SpamStore.STATUS_DELETED && (
+            e.status == SpamStore.STATUS_DELETED && !e.confirmed && (
                 settings.isAllowed(e.sender) || contacts.isContact(e.sender) ||
                     !byContent.withTaint(byContent.classify(e.body, e.sender), e.sender, tainted).isSpam
                 )

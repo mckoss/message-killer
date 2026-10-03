@@ -82,6 +82,10 @@ class MainActivity : FlutterActivity() {
             }
             "listSpam" -> background(result) { store.list().map { it.toMap() } }
             "listRestorable" -> background(result) { Cleanup.restorable(this).map { it.toMap() } }
+            "confirmSpam" -> background(result) {
+                store.confirm((call.argument<List<Number>>("ids") ?: emptyList()).map { it.toLong() })
+                null
+            }
             "restore" -> background(result) {
                 val ids = (call.argument<List<Number>>("ids") ?: emptyList()).map { it.toLong() }
                 mapOf("restored" to Cleanup.restore(this, ids), "requested" to ids.size)

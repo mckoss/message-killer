@@ -118,7 +118,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       child: ListTile(
         leading: const Icon(Icons.restore),
         title: Text(
-          '${plural(status.restorable, 'deleted text')} no longer look like spam',
+          '${plural(status.restorable, 'deleted text')} no longer '
+          '${status.restorable == 1 ? 'looks' : 'look'} like spam',
         ),
         subtitle: const Text('Review and put them back in your inbox'),
         trailing: const Icon(Icons.chevron_right),

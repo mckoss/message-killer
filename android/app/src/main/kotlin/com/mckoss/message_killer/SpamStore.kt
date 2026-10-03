@@ -12,7 +12,7 @@ import kotlin.math.abs
  * removed from the inbox. Entries are kept for [RETENTION_DAYS] days.
  */
 class SpamStore private constructor(context: Context) :
-    SQLiteOpenHelper(context.applicationContext, "spam.db", null, 3) {
+    SQLiteOpenHelper(context.applicationContext, "spam.db", null, 4) {
 
     data class Entry(
         val id: Long,
@@ -26,6 +26,8 @@ class SpamStore private constructor(context: Context) :
         val reasons: List<String>,
         val smsId: Long?,
         val category: String,
+        /** You confirmed this really is spam; never offered for restore. */
+        val confirmed: Boolean = false,
     ) {
         fun toMap(): Map<String, Any?> = mapOf(
             "id" to id,
@@ -39,6 +41,7 @@ class SpamStore private constructor(context: Context) :
             "reasons" to reasons,
             "smsId" to smsId,
             "category" to category,
+            "confirmed" to confirmed,
         )
     }
 
@@ -56,7 +59,8 @@ class SpamStore private constructor(context: Context) :
               score REAL NOT NULL,
               reasons TEXT NOT NULL,
               sms_id INTEGER UNIQUE,
-              category TEXT NOT NULL DEFAULT 'political'
+              category TEXT NOT NULL DEFAULT 'political',
+              confirmed INTEGER NOT NULL DEFAULT 0
             )
             """.trimIndent()
         )
@@ -74,6 +78,9 @@ class SpamStore private constructor(context: Context) :
         if (oldVersion in 1..2) {
             // Everything filed before categories existed was political.
             db.execSQL("ALTER TABLE spam ADD COLUMN category TEXT NOT NULL DEFAULT 'political'")
+        }
+        if (oldVersion in 1..3) {
+            db.execSQL("ALTER TABLE spam ADD COLUMN confirmed INTEGER NOT NULL DEFAULT 0")
         }
     }
 
@@ -253,6 +260,15 @@ class SpamStore private constructor(context: Context) :
             "SELECT * FROM spam ORDER BY message_time DESC LIMIT ?", arrayOf(limit.toString())
         ).use { c -> buildList { while (c.moveToNext()) add(c.toEntry()) } }
 
+    /** Marks entries as confirmed spam so they're never offered for restore. */
+    @Synchronized
+    fun confirm(ids: Collection<Long>) = inTransaction {
+        val db = writableDatabase
+        for (id in ids) {
+            db.update("spam", ContentValues().apply { put("confirmed", 1) }, "id = ?", arrayOf(id.toString()))
+        }
+    }
+
     @Synchronized
     fun remove(id: Long) {
         writableDatabase.delete("spam", "id = ?", arrayOf(id.toString()))
@@ -324,6 +340,7 @@ class SpamStore private constructor(context: Context) :
         reasons = getString(getColumnIndexOrThrow("reasons")).split('\n').filter { it.isNotEmpty() },
         smsId = getColumnIndexOrThrow("sms_id").let { if (isNull(it)) null else getLong(it) },
         category = getString(getColumnIndexOrThrow("category")),
+        confirmed = getInt(getColumnIndexOrThrow("confirmed")) != 0,
     )
 
     companion object {

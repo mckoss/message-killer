@@ -293,6 +293,9 @@ abstract class NativeApi {
   /// Deleted texts that no longer count as spam under the current rules.
   Future<List<SpamEntry>> listRestorable();
 
+  /// Marks entries as really spam: they're never offered for restore again.
+  Future<void> confirmSpam(List<int> ids);
+
   /// Puts Spam folder entries back in the inbox (needs the default SMS role).
   /// Returns how many were restored.
   Future<int> restore(List<int> ids);
@@ -432,6 +435,10 @@ class MethodChannelNativeApi implements NativeApi {
         .map((e) => SpamEntry.fromMap(e! as Map<Object?, Object?>))
         .toList();
   }
+
+  @override
+  Future<void> confirmSpam(List<int> ids) =>
+      _channel.invokeMethod('confirmSpam', {'ids': ids});
 
   @override
   Future<int> restore(List<int> ids) async {
