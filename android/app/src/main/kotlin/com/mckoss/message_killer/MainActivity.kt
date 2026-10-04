@@ -148,13 +148,15 @@ class MainActivity : FlutterActivity() {
                 val normalized = Classifier.normalizeSender(sender)
                 store.removePendingWhere { Classifier.normalizeSender(it.sender) == normalized }
             }
-            "getSettings" -> result.success(mapOf(
+            "getSettings" -> background(result) { mapOf(
                 "liveFilter" to settings.liveFilter,
                 "dailyCleanup" to settings.dailyCleanup,
                 "customKeywords" to settings.customKeywords,
                 "allowedSenders" to settings.allowedSenders,
                 "categories" to settings.enabledCategories.map { it.key },
-            ))
+                "ownerNames" to settings.ownerNames,
+                "suggestedName" to ownerFirstName(),
+            ) }
             "updateSettings" -> {
                 call.argument<Boolean>("liveFilter")?.let { settings.liveFilter = it }
                 call.argument<Boolean>("dailyCleanup")?.let {
@@ -163,6 +165,7 @@ class MainActivity : FlutterActivity() {
                 }
                 call.argument<List<String>>("customKeywords")?.let { settings.customKeywords = it }
                 call.argument<List<String>>("allowedSenders")?.let { settings.allowedSenders = it }
+                call.argument<List<String>>("ownerNames")?.let { settings.ownerNames = it }
                 call.argument<List<String>>("categories")?.let { keys ->
                     settings.enabledCategories = keys.mapNotNull { Classifier.Category.fromKey(it) }.toSet()
                 }
@@ -200,6 +203,17 @@ class MainActivity : FlutterActivity() {
     }
 
     /** "0.16.0 (build 42)" from the installed package. */
+    /** First name from the phone owner's profile card ("Me"), if there is one. */
+    private fun ownerFirstName(): String? = try {
+        contentResolver.query(
+            android.provider.ContactsContract.Profile.CONTENT_URI,
+            arrayOf(android.provider.ContactsContract.Profile.DISPLAY_NAME), null, null, null,
+        )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+            ?.trim()?.split(Regex("""\s+"""))?.firstOrNull()?.takeIf { it.length >= 2 }
+    } catch (e: Exception) {
+        null
+    }
+
     private fun versionInfo(): String = try {
         val info = packageManager.getPackageInfo(packageName, 0)
         "${info.versionName} (build ${info.longVersionCode})"

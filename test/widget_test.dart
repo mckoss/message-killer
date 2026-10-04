@@ -555,4 +555,28 @@ void main() {
       ['2024-12:2', '2025-1:0', '2025-2:1'],
     );
   });
+
+  testWidgets('settings: your names, with the profile name suggested', (
+    tester,
+  ) async {
+    final api = FakeNativeApi()..suggestedName = 'Michael';
+    await tester.pumpWidget(MessageKillerApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Filter settings'));
+    await tester.pumpAndSettle();
+
+    await scrollTo(tester, find.text('Add Michael'));
+    await tester.tap(find.text('Add Michael'));
+    await tester.pumpAndSettle();
+    expect(api.ownerNames, ['Michael']);
+    expect(find.text('Add Michael'), findsNothing);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'e.g. Michael'),
+      'Mike',
+    );
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(api.ownerNames, ['Michael', 'Mike']);
+  });
 }

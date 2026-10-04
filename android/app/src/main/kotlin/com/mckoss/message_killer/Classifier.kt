@@ -16,6 +16,8 @@ class Classifier(
     /** Senders that already sent political texts; everything else from them is flagged too. */
     taintedSenders: Collection<String> = emptyList(),
     private val enabled: Set<Category> = Category.entries.toSet(),
+    /** Your first name and nicknames; a text calling you anything else is a wrong-number scam. */
+    ownerNames: Collection<String> = emptyList(),
 ) {
     enum class Category(val key: String, val label: String) {
         POLITICAL("political", "Political"),
@@ -52,6 +54,7 @@ class Classifier(
     private val allowed = allowedSenders.map(::normalizeSender).filter { it.isNotEmpty() }.toSet()
     private val tainted = taintedSenders.map(::normalizeSender).filter { it.isNotEmpty() }.toSet()
     private val rules = BUILT_IN_RULES + customRules
+    private val names = ownerNames.map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet()
 
     /** Rule matches for one body, before anything sender-specific. */
     private class Matched(val scores: Map<Category, Double>, val reasons: Map<Category, List<String>>)
@@ -74,6 +77,18 @@ class Classifier(
             for (c in rule.categories) {
                 scores[c] = (scores[c] ?: 0.0) + rule.weight
                 reasons.getOrPut(c) { mutableListOf() } += rule.label
+            }
+        }
+        addressedName(body)?.let { name ->
+            val label = when {
+                names.isEmpty() -> if (WRONG_NUMBER_OPENER in reasons[Category.PHISHING].orEmpty()) null else WRONG_NUMBER_OPENER
+                name.lowercase() in names -> null
+                else -> "Calls you by a name that isn't yours ($name)"
+            }
+            if (label != null) {
+                val weight = if (label == WRONG_NUMBER_OPENER) 1.0 else WRONG_NAME_WEIGHT
+                scores[Category.PHISHING] = (scores[Category.PHISHING] ?: 0.0) + weight
+                reasons.getOrPut(Category.PHISHING) { mutableListOf() } += label
             }
         }
         return Matched(scores, reasons).also { synchronized(matched) { matched[body] = it } }
@@ -150,6 +165,7 @@ class Classifier(
             customKeywords: Collection<String>,
             allowedSenders: Collection<String>,
             enabled: Set<Category> = Category.entries.toSet(),
+            ownerNames: Collection<String> = emptyList(),
         ): String {
             val parts = buildList {
                 add("logic=$SCAN_LOGIC_VERSION")
@@ -158,6 +174,7 @@ class Classifier(
                 add(BUILT_IN_RULES_TEXT)
                 customKeywords.map { it.trim().lowercase() }.sorted().forEach { add("kw=$it") }
                 allowedSenders.map(::normalizeSender).sorted().forEach { add("allow=$it") }
+                ownerNames.map { it.trim().lowercase() }.filter { it.isNotEmpty() }.sorted().forEach { add("name=$it") }
             }
             val digest = java.security.MessageDigest.getInstance("SHA-256")
                 .digest(parts.joinToString("\n").toByteArray(Charsets.UTF_8))
@@ -165,6 +182,40 @@ class Classifier(
         }
 
         private val SHORT_CODE = Regex("""^\d{5,6}$""")
+
+        const val WRONG_NUMBER_OPENER = "Wrong-number opener"
+        private const val WRONG_NAME_WEIGHT = 3.0
+
+        /** "Hi Anna", "Hey Diane,", "Good morning Sam" … */
+        private val GREETING_NAME = Regex(
+            """^\W*(?:(?i:hi|hello|hey|hiya|dear|good\s+(?:morning|afternoon|evening))[,!]?\s+)(\p{Lu}\p{Ll}{1,14})\b(?!['’]s)"""
+        )
+
+        /** "Anna, …", "Diane are u getting this", "Sam did you …" */
+        private val NAME_FIRST = Regex(
+            """^\W*(\p{Lu}\p{Ll}{1,14})(?:\s*,|\s+(?i:are|r|is|did|do|can|could|have|how)\s+(?i:u|you)\b)"""
+        )
+
+        /** Capitalized greeting words that aren't names. */
+        private val NOT_NAMES = setOf(
+            "there", "all", "everyone", "everybody", "team", "friend", "friends", "folks", "neighbor",
+            "neighbors", "patriot", "patriots", "mom", "mommy", "mama", "dad", "daddy", "papa", "sir", "madam",
+            "maam", "guys", "gang", "love", "honey", "babe", "baby", "dear", "sweetie", "buddy", "bro", "man",
+            "dude", "sis", "family", "fam", "customer", "member", "members", "supporter", "voter", "fellow",
+            "again", "back", "where", "what", "how", "why", "when", "who", "so", "ok", "okay", "sorry",
+            "please", "thanks", "thank", "yes", "no", "also", "just", "today", "tonight", "tomorrow",
+            "morning", "afternoon", "evening", "happy", "merry", "hope", "did", "are", "is", "can", "could",
+            "have", "hey", "hi", "hello", "well", "oh", "wow", "great", "sure", "yeah", "yep", "nope", "guess",
+            "quick", "reminder", "alert", "urgent", "final", "breaking", "update", "congratulations",
+            "congrats", "welcome", "attention", "important", "notice", "order", "your", "our", "the", "this",
+            "that", "it", "we", "you", "fyi", "btw", "lol", "omg", "wait", "listen", "look", "note", "heads",
+        )
+
+        /** The name a text greets you by, if it opens with one. */
+        fun addressedName(body: String): String? {
+            val name = (GREETING_NAME.find(body) ?: NAME_FIRST.find(body))?.groupValues?.get(1) ?: return null
+            return name.takeIf { it.lowercase() !in NOT_NAMES }
+        }
         private val SHORT_CODE_CATEGORIES = listOf(Category.POLITICAL, Category.COMMERCIAL)
 
         /** Distinct bodies remembered per classifier (see [match]). */
@@ -311,8 +362,9 @@ class Classifier(
                 phrase("""within\s+(12|24|48|72)\s+hours|to\s+avoid\s+(suspension|penalt(y|ies)|late\s+fees?|additional\s+fees?|legal\s+action)|final\s+notice"""), X),
             Rule("Suspicious link domain", 1.5,
                 Regex("""\b[\w-]+\.(top|xyz|icu|vip|click|cfd|sbs|cyou|buzz|rest)(/|\b)""", RegexOption.IGNORE_CASE), X),
-            Rule("Wrong-number opener", 1.0,
-                Regex("""^\W*(?i:hi|hello|hey)[,!]?\s+(?i:is\s+this|are\s+you)\s+\p{Lu}|^\W*(?i:hi|hello|hey)\s+\p{Lu}\p{Ll}+[.!]"""), X),
+            // Greetings by name ("Hi Anna.") are checked against your names in classify().
+            Rule(WRONG_NUMBER_OPENER, 1.0,
+                Regex("""^\W*(?i:hi|hello|hey)[,!]?\s+(?i:is\s+this|are\s+you)\s+\p{Lu}"""), X),
             // Scam conversation starters sent to "wrong numbers": "Diane are u getting this",
             // "I just got back from a trip… could you drop my dog off?"
             Rule("Are-you-getting-this probe", 3.0,

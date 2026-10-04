@@ -30,6 +30,8 @@ class FakeNativeApi implements NativeApi {
   bool liveFilter = true;
   bool dailyCleanup = false;
   List<String> customKeywords = [];
+  List<String> ownerNames = [];
+  String? suggestedName;
   List<String> allowedSenders = [];
   Set<SpamCategory> categories = {...SpamCategory.filterable};
   List<FlaggedSender> flagged = [];
@@ -167,6 +169,8 @@ class FakeNativeApi implements NativeApi {
     liveFilter: liveFilter,
     dailyCleanup: dailyCleanup,
     customKeywords: List.of(customKeywords),
+    ownerNames: List.of(ownerNames),
+    suggestedName: suggestedName,
     allowedSenders: List.of(allowedSenders),
     categories: {...categories},
   );
@@ -177,12 +181,14 @@ class FakeNativeApi implements NativeApi {
     bool? dailyCleanup,
     List<String>? customKeywords,
     List<String>? allowedSenders,
+    List<String>? ownerNames,
     Set<SpamCategory>? categories,
   }) async {
     if (categories != null) this.categories = categories;
     if (liveFilter != null) this.liveFilter = liveFilter;
     if (dailyCleanup != null) this.dailyCleanup = dailyCleanup;
     if (customKeywords != null) this.customKeywords = customKeywords;
+    if (ownerNames != null) this.ownerNames = ownerNames;
     if (allowedSenders != null) this.allowedSenders = allowedSenders;
   }
 

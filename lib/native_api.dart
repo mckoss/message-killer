@@ -193,6 +193,8 @@ class FilterSettings {
     required this.customKeywords,
     required this.allowedSenders,
     this.categories = const {...SpamCategory.filterable},
+    this.ownerNames = const [],
+    this.suggestedName,
   });
 
   final bool liveFilter;
@@ -203,6 +205,12 @@ class FilterSettings {
   /// Which kinds of spam are filtered.
   final Set<SpamCategory> categories;
 
+  /// Your first name and nicknames; texts greeting anyone else are scams.
+  final List<String> ownerNames;
+
+  /// First name from the phone's owner profile, offered when [ownerNames] is empty.
+  final String? suggestedName;
+
   factory FilterSettings.fromMap(Map<Object?, Object?> m) => FilterSettings(
     liveFilter: m['liveFilter'] == true,
     dailyCleanup: m['dailyCleanup'] == true,
@@ -211,6 +219,8 @@ class FilterSettings {
     categories: m['categories'] == null
         ? {...SpamCategory.filterable}
         : {for (final k in m['categories'] as List) ?SpamCategory.fromKey(k)},
+    ownerNames: ((m['ownerNames'] as List?) ?? const []).cast<String>(),
+    suggestedName: m['suggestedName'] as String?,
   );
 }
 
@@ -362,6 +372,7 @@ abstract class NativeApi {
     bool? dailyCleanup,
     List<String>? customKeywords,
     List<String>? allowedSenders,
+    List<String>? ownerNames,
     Set<SpamCategory>? categories,
   });
   Future<ClassifyResult> classify(String text, {String? sender});
@@ -497,11 +508,13 @@ class MethodChannelNativeApi implements NativeApi {
     bool? dailyCleanup,
     List<String>? customKeywords,
     List<String>? allowedSenders,
+    List<String>? ownerNames,
     Set<SpamCategory>? categories,
   }) => _channel.invokeMethod('updateSettings', {
     'liveFilter': ?liveFilter,
     'dailyCleanup': ?dailyCleanup,
     'customKeywords': ?customKeywords,
+    'ownerNames': ?ownerNames,
     'allowedSenders': ?allowedSenders,
     'categories': ?categories?.map((c) => c.key).toList(),
   });

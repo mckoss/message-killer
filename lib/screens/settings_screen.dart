@@ -88,6 +88,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 const SizedBox(height: 16),
                 _EditableList(
+                  title: 'Your names',
+                  description:
+                      'Your first name and nicknames. Texts from unknown numbers that greet '
+                      'you by some other name ("Hi Anna") are filtered as wrong-number scams.',
+                  hint: 'e.g. Michael',
+                  items: settings.ownerNames,
+                  suggestion: settings.ownerNames.isEmpty
+                      ? settings.suggestedName
+                      : null,
+                  onChanged: (items) async {
+                    await widget.api.updateSettings(ownerNames: items);
+                    await _load();
+                  },
+                ),
+                const SizedBox(height: 16),
+                _EditableList(
                   title: 'Custom keywords',
                   description: 'Any text containing one of these words or phrases is always filtered.',
                   hint: 'e.g. a candidate\'s name',
@@ -216,12 +232,16 @@ class _EditableList extends StatefulWidget {
     required this.hint,
     required this.items,
     required this.onChanged,
+    this.suggestion,
   });
 
   final String title;
   final String description;
   final String hint;
   final List<String> items;
+
+  /// Offered as a one-tap "Add" chip.
+  final String? suggestion;
   final ValueChanged<List<String>> onChanged;
 
   @override
@@ -264,6 +284,13 @@ class _EditableListState extends State<_EditableList> {
                 onDeleted: () => widget.onChanged(
                   widget.items.where((i) => i != item).toList(),
                 ),
+              ),
+            if (widget.suggestion case final suggestion?)
+              ActionChip(
+                avatar: const Icon(Icons.add, size: 18),
+                label: Text('Add $suggestion'),
+                onPressed: () =>
+                    widget.onChanged([...widget.items, suggestion]),
               ),
           ],
         ),

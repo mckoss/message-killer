@@ -25,6 +25,11 @@ class AppSettings(context: Context) {
         get() = readList(KEY_ALLOWED_SENDERS)
         set(value) = writeList(KEY_ALLOWED_SENDERS, value)
 
+    /** Your first name and nicknames, for spotting wrong-number scams ("Hi Anna"). */
+    var ownerNames: List<String>
+        get() = readList(KEY_OWNER_NAMES)
+        set(value) = writeList(KEY_OWNER_NAMES, value)
+
     /** The messaging app that was the default before we asked for the SMS role. */
     var previousDefaultSmsPackage: String?
         get() = prefs.getString(KEY_PREVIOUS_DEFAULT, null)
@@ -47,10 +52,10 @@ class AppSettings(context: Context) {
             ?: Classifier.Category.entries.toSet()
         set(value) = prefs.edit().putString(KEY_CATEGORIES, value.joinToString(",") { it.key }).apply()
 
-    fun scanFingerprint() = Classifier.fingerprint(customKeywords, allowedSenders, enabledCategories)
+    fun scanFingerprint() = Classifier.fingerprint(customKeywords, allowedSenders, enabledCategories, ownerNames)
 
     fun classifier(taintedSenders: Collection<String> = SpamStore.get(appContext).taintedSenders()) =
-        Classifier(customKeywords, allowedSenders, taintedSenders, enabledCategories)
+        Classifier(customKeywords, allowedSenders, taintedSenders, enabledCategories, ownerNames)
 
     /**
      * The classifier for one-off checks (each notification, each incoming SMS),
@@ -60,7 +65,8 @@ class AppSettings(context: Context) {
     fun liveClassifier(): Classifier {
         val key = listOf(
             prefs.getString(KEY_CUSTOM_KEYWORDS, ""), prefs.getString(KEY_ALLOWED_SENDERS, ""),
-            prefs.getString(KEY_CATEGORIES, null), SpamStore.get(appContext).version,
+            prefs.getString(KEY_CATEGORIES, null), prefs.getString(KEY_OWNER_NAMES, ""),
+            SpamStore.get(appContext).version,
         )
         liveCache?.let { (k, c) -> if (k == key) return c }
         return classifier().also { liveCache = key to it }
@@ -112,5 +118,6 @@ class AppSettings(context: Context) {
         private const val KEY_LAST_SCAN_AT = "last_scan_at"
         private const val KEY_CATEGORIES = "categories"
         private const val KEY_LAST_SCAN_FINGERPRINT = "last_scan_fingerprint"
+        private const val KEY_OWNER_NAMES = "owner_names"
     }
 }

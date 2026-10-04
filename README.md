@@ -38,6 +38,10 @@ RCS chat keeps working.
   month as stacked bars (political / commercial / phishing), with totals
   and a month-by-month table. Monthly counts are kept after texts leave the
   Spam folder, so the history keeps growing past 90 days.
+- **Wrong-number scams:** add your first name and nicknames under *Filter
+  settings → Your names* (your phone's profile name is offered). A text from
+  an unknown number that greets you by any other name ("Hi Anna", "Diane are
+  u getting this") is filtered as a scam.
 - **Contacts are never filtered:** with Contacts access, texts from anyone in
   your contacts (including synced Google contacts) are never silenced or
   deleted. Other allowed senders can be viewed and removed under *Filter

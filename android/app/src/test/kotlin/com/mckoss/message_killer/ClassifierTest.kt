@@ -273,4 +273,39 @@ class ClassifierTest {
         assertEquals("88022", Classifier.normalizeSender("88022"))
         assertEquals("jess smith", Classifier.normalizeSender("  Jess Smith "))
     }
+
+    @Test
+    fun wrongNameGreetingsAreScams() {
+        val named = Classifier(ownerNames = listOf("Alex", " alexander "))
+        for (text in listOf(
+            "Hi Anna. Are you free for lunch next week?",
+            "Hey Jessica, it's been a while! How have you been?",
+            "Good morning Linda",
+            "Diane are u getting this",
+        )) {
+            val r = named.classify(text, sender = "+12065550100")
+            assertEquals("score=${r.score}, ${r.reasons}: $text", Classifier.Category.PHISHING, r.category)
+        }
+        for (text in listOf(
+            "Hi Alex. Running 10 min late.",
+            "Alexander, can you call me back?",
+            "Hi Alex, I just got back from a trip. Could you pick up my keys?",
+            "Hi there! See you at 5",
+            "Hey Mom, home by 7",
+            "Hi Team, the meeting moved to 3",
+            "Where are you?",
+            "Hey Kevin's mom, it's Sarah",
+        )) {
+            val r = named.classify(text, sender = "+12065550100")
+            assertFalse("score=${r.score}, ${r.reasons}: $text", r.isSpam)
+        }
+        // Without your names, a greeting by name is only a weak hint.
+        assertFalse(classifier.classify("Hi Anna. Are you free for lunch next week?").isSpam)
+    }
+
+    @Test
+    fun ownerNamesChangeTheFingerprint() {
+        assertFalse(Classifier.fingerprint(emptyList(), emptyList()) ==
+            Classifier.fingerprint(emptyList(), emptyList(), ownerNames = listOf("Alex")))
+    }
 }
