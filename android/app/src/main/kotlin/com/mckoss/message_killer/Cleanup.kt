@@ -78,6 +78,7 @@ object Cleanup {
         // everything else from it is filed too.
         val byContent = settings.classifier(taintedSenders = emptyList())
         var results = classifyAll(messages, byContent)
+        resolveUnknownSenders(context, messages, results, byContent, contacts).let { (m, r) -> messages = m; results = r }
         val alreadyTainted = store.taintedSenders()
         val politicalSenders = messages
             .filterIndexed { i, _ -> results[i].category == Classifier.Category.POLITICAL }
@@ -111,8 +112,10 @@ object Cleanup {
                 val seen = messages.map { it.id }.toSet()
                 val older = notFromContacts(SmsInbox.readInbox(context, threadIds = threads), contacts)
                     .filter { it.id !in seen }
-                messages = messages + older
-                results = results + classifyAll(older, byContent)
+                val (olderResolved, olderResults) =
+                    resolveUnknownSenders(context, older, classifyAll(older, byContent), byContent, contacts)
+                messages = messages + olderResolved
+                results = results + olderResults
                 lap("re-read ${older.size} texts from ${threads.size} newly flagged conversations")
             }
         }
@@ -172,6 +175,33 @@ object Cleanup {
         }
         progress = ""
         return restored
+    }
+
+    /**
+     * Picture messages from multi-participant conversations arrive without a
+     * sender. Look it up (one query each) only for those that look like spam,
+     * then re-check them with the sender (contacts, allow list, short codes).
+     */
+    private fun resolveUnknownSenders(
+        context: Context,
+        messages: List<SmsInbox.Message>,
+        results: List<Classifier.Result>,
+        classifier: Classifier,
+        contacts: ContactsChecker,
+    ): Pair<List<SmsInbox.Message>, List<Classifier.Result>> {
+        val outMessages = messages.toMutableList()
+        val outResults = results.toMutableList()
+        messages.forEachIndexed { i, m ->
+            if (m.address.isNotEmpty() || !results[i].isSpam) return@forEachIndexed
+            val sender = SmsInbox.senderOf(context, m)
+            outMessages[i] = m.copy(address = sender)
+            outResults[i] = if (sender.isNotEmpty() && contacts.isContact(sender)) {
+                Classifier.Result(0.0, listOf("From a contact"), null)
+            } else {
+                classifier.classify(m.body, sender)
+            }
+        }
+        return outMessages to outResults
     }
 
     private fun notFromContacts(all: List<SmsInbox.Message>, contacts: ContactsChecker) =

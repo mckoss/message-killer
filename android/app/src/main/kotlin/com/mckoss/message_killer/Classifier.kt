@@ -105,7 +105,7 @@ class Classifier(
          * Bump when scan logic changes in ways the rule list doesn't capture
          * (e.g. which messages are read, how senders are matched).
          */
-        const val SCAN_LOGIC_VERSION = 3
+        const val SCAN_LOGIC_VERSION = 4
 
         private val P = setOf(Category.POLITICAL)
         private val C = setOf(Category.COMMERCIAL)

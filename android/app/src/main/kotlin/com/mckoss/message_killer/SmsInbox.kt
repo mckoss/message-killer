@@ -141,8 +141,10 @@ object SmsInbox {
         return rows.mapNotNull { row ->
             val body = texts[row.id]?.toString()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
             val sender = if (threadSenders != null) {
-                // Group conversations are skipped: they're with people, not bulk senders.
-                threadSenders[row.thread] ?: return@mapNotNull null
+                // Conversations with more than one participant (real group chats, but
+                // also 1:1 MMS threads that list your own number too) get "" here; the
+                // scan looks up the actual sender only for texts that look like spam.
+                threadSenders[row.thread] ?: ""
             } else {
                 mmsSender(context, row.id) // slow fallback: one query per message
             }
@@ -182,6 +184,10 @@ object SmsInbox {
     } catch (e: Exception) {
         null
     }
+
+    /** Sender of one MMS (by the negative id used in [Message]); one query. */
+    fun senderOf(context: Context, message: Message): String =
+        if (message.isMms) mmsSender(context, -message.id) else message.address
 
     private fun mmsSender(context: Context, rowId: Long): String =
         context.contentResolver.query(
