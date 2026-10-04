@@ -68,6 +68,7 @@ class ClassifierTest {
 
     // More political texts that got through (Oct 2026), links shortened.
     private val morePolitical = listOf(
+        "Mike, the GOP is FALLING APART!\n\nWe only need to FLIP 4 seats to win! We're still \$10,473 short with only 24 hours left until our weekly fundraising deadline. Please pitch in something generous (300% MATCHED) >>> https://example.win/l/xxxxx\n\nTime is running out,\n\nCongressional Black Caucus PAC\n\nText STOP to quit",
         "Hi, I am Mia from US Speaks. We're polling WA residents. Can you answer a 4-question poll?\n\n1) Yes\n2) No (or QUIT Survey)",
         "BOYCOTT: TV Networks Stop Coverage of Trump Over Media Ban\n\nDo you support the media's historic BOYCOTT of Trump?\n\nY / N: dem-action.org/l/xxxxx\n\nDAC\nStop2End",
         "BREAKING: Steve Kornacki's SHOCKING prediction about House control. Read more: house-dem-victory.org/l/xxxxx\n\nHDV\nStop2End",
@@ -118,6 +119,7 @@ class ClassifierTest {
     private val commercial = listOf(
         "birddogs: Last Call on Sharehouse Shorts!\n\nGet 'em now, we aren't making more of these...\n\nhttps://birddogs.pscrpt.io/xxxx\n\n...until next summer.\n\np.s. sorry about the incorrect contact card in our last text. Save this new one, I pinky promise it works.",
         "CVS ExtraCare: School's back! Be prepared with \$3 off your \$10 pain relief, allergy or immunity support purchase. Tap link to send to card: i.cvs.com/xxxx",
+        "birddogs: \"Somehow perfectly acceptable at work\" - HR\n\nBrand new pants for fall:\nhttps://birddogs.pscrpt.io/xxxx\n\nDress pants with undressed comfort.",
         "Flash sale! 30% off everything today only. Reply STOP to opt out",
         "FLASH SALE TODAY: 30% off everything. Shop shop.example.com/l/abc123 Reply STOP to opt out",
     )

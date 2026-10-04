@@ -110,7 +110,9 @@ class SpamEntry {
   final SpamCategory category;
 
   String get statusLabel => switch (status) {
-    SpamStatus.silenced => 'Notification silenced',
+    SpamStatus.silenced =>
+      'Notification silenced. If it stays like this after a scan, it came '
+          'as an RCS chat message, which Android doesn\'t let other apps delete.',
     SpamStatus.pendingDelete => 'Waiting to be deleted from inbox',
     SpamStatus.deleted => 'Deleted from inbox',
   };
