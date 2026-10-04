@@ -33,7 +33,7 @@ class ClassifierTest {
     // Opt-out footer variants seen in a real export.
     @Test
     fun recognizesFooterVariants() {
-        for (footer in listOf("Stop2End", "Stop to End", "StopToEnd", "End2End", "Stop to stop", "Text STOP to quit")) {
+        for (footer in listOf("Stop2End", "Stop to End", "StopToEnd", "End2End", "Stop to stop", "Text STOP to quit", "Opt-Out at any time by replying STOP")) {
             assertTrue(footer, classifier.classify("Hello $footer").reasons.contains("Bulk-text opt-out footer"))
         }
     }
@@ -69,6 +69,7 @@ class ClassifierTest {
     // More political texts that got through (Oct 2026), links shortened.
     private val morePolitical = listOf(
         "Mike, the GOP is FALLING APART!\n\nWe only need to FLIP 4 seats to win! We're still \$10,473 short with only 24 hours left until our weekly fundraising deadline. Please pitch in something generous (300% MATCHED) >>> https://example.win/l/xxxxx\n\nTime is running out,\n\nCongressional Black Caucus PAC\n\nText STOP to quit",
+        "Hello, it's Research-Polls! We are conducting a study on local issues in Washington. Your response is voluntary and will be kept strictly confidential! Let us know your thoughts and what you would like to see changed: https://example.com/xxxx You may Opt-Out at any time by replying STOP. Want to receive studies in the future? Reply YES",
         "Hi, I am Mia from US Speaks. We're polling WA residents. Can you answer a 4-question poll?\n\n1) Yes\n2) No (or QUIT Survey)",
         "BOYCOTT: TV Networks Stop Coverage of Trump Over Media Ban\n\nDo you support the media's historic BOYCOTT of Trump?\n\nY / N: dem-action.org/l/xxxxx\n\nDAC\nStop2End",
         "BREAKING: Steve Kornacki's SHOCKING prediction about House control. Read more: house-dem-victory.org/l/xxxxx\n\nHDV\nStop2End",

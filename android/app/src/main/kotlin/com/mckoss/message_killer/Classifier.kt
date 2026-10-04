@@ -153,7 +153,7 @@ class Classifier(
         }
 
         private const val FOOTER =
-            """(reply|txt|text)\s+stop|stop\s*(2|to)\s*(end|quit|stop|opt[-\s]?out|unsub\w*)|stop2end|stop=end|\bend2end\b"""
+            """(reply|replying|txt|text|texting)\s+stop|opt[-\s]?out\s+at\s+any\s+time|stop\s*(2|to)\s*(end|quit|stop|opt[-\s]?out|unsub\w*)|stop2end|stop=end|\bend2end\b"""
 
         val BUILT_IN_RULES: List<Rule> = listOf(
             // ---------------------------------------------------------- political
@@ -201,6 +201,11 @@ class Classifier(
             // Signed by a person at the end of the first line: "My last-ditch request. - James Talarico"
             Rule("Signed by a person", 1.0,
                 Regex("""^[^\n]{0,160}\s[-–—]\s?\p{Lu}[\p{L}'’]+(\s+\p{Lu}[\p{L}'’.]+){1,2}\s*(\n|$)"""), P),
+
+            // Opinion-survey solicitations: "We are conducting a study on local issues…
+            // your response is voluntary and confidential… receive studies in the future?"
+            Rule("Survey / opinion-poll solicitation", 2.0,
+                phrase("""conducting\s+(a|an|our)\s+(\w+\s+)?(study|survey|poll)|research[-\s]polls?|(your\s+)?(response|answers?|participation)\s+(is|are)\s+(voluntary|anonymous|confidential)|kept\s+(strictly\s+)?confidential|receive\s+(future\s+)?(studies|surveys|polls)|(studies|surveys|polls)\s+in\s+the\s+future|(local|community)\s+issues|what\s+you\s+would\s+like\s+to\s+see\s+changed"""), P),
 
             // Peer-to-peer texting platforms use tracking links like "site.org/l/uEel5Z".
             Rule("Campaign-style tracking link", 0.5,
