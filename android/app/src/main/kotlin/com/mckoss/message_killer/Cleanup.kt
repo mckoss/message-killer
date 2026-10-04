@@ -54,7 +54,7 @@ object Cleanup {
         store.purgeExpired()
         if (!hasSmsPermission(context)) return ScanResult(0, 0, store.pendingSmsIds().size)
         val settings = AppSettings(context)
-        val contacts = ContactsChecker(context)
+        val contacts = ContactsChecker.get(context)
         val startedAt = System.currentTimeMillis()
         val start = SystemClock.elapsedRealtime()
         fun lap(step: String) = Log.i("MessageKiller", "scan: $step at ${SystemClock.elapsedRealtime() - start} ms")
@@ -144,17 +144,23 @@ object Cleanup {
     fun restorable(context: Context): List<SpamStore.Entry> {
         val settings = AppSettings(context)
         val store = SpamStore.get(context)
+        val contacts = ContactsChecker.get(context) // before the key: loading bumps its generation
+        // The home screen asks for the count, then the restore screen for the list:
+        // re-check the Spam folder only when it, the rules, or contacts changed.
+        val key = Triple(settings.scanFingerprint(), store.version, ContactsChecker.generation)
+        restorableCache?.let { (k, list) -> if (k == key) return list }
         val byContent = settings.classifier(taintedSenders = emptyList())
         val tainted = store.taintedSenders()
-        val contacts = ContactsChecker(context)
         return store.list().filter { e ->
             e.status == SpamStore.STATUS_DELETED && !e.confirmed &&
                 e.category != SpamStore.CATEGORY_PRUNED && (
                 settings.isAllowed(e.sender) || contacts.isContact(e.sender) ||
                     !byContent.withTaint(byContent.classify(e.body, e.sender), e.sender, tainted).isSpam
                 )
-        }
+        }.also { restorableCache = key to it }
     }
+
+    @Volatile private var restorableCache: Pair<Triple<String, Long, Long>, List<SpamStore.Entry>>? = null
 
     const val PRUNE_AGE_DAYS = 90L
 
@@ -167,17 +173,30 @@ object Cleanup {
      */
     private fun pruneCandidates(context: Context): List<SmsInbox.Message> {
         val settings = AppSettings(context)
-        val contacts = ContactsChecker(context)
-        val cutoff = System.currentTimeMillis() - java.util.concurrent.TimeUnit.DAYS.toMillis(PRUNE_AGE_DAYS)
+        val contacts = ContactsChecker.get(context)
+        return oldOneWayMessages(context).filter {
+            !settings.isAllowed(it.address) && !contacts.isContact(it.address)
+        }
+    }
+
+    /**
+     * Old texts in conversations you never replied to. Reading them is the slow
+     * part, so the preview's read is reused by the prune that follows it.
+     */
+    private fun oldOneWayMessages(context: Context): List<SmsInbox.Message> {
+        val now = System.currentTimeMillis()
+        pruneCache?.let { (at, list) -> if (now - at < PRUNE_CACHE_MS) return list }
+        val cutoff = now - java.util.concurrent.TimeUnit.DAYS.toMillis(PRUNE_AGE_DAYS)
         progress = "Finding conversations you've replied to…"
         val replied = SmsInbox.threadsYouReplied(context)
-        val all = SmsInbox.readInbox(context, includePictureOnly = true) { progress = it }
-        progress = "Checking ${all.size} messages…"
-        return all.filter {
-            it.date < cutoff && it.threadId !in replied && it.address.isNotEmpty() &&
-                !settings.isAllowed(it.address) && !contacts.isContact(it.address)
-        }.also { progress = "" }
+        val old = SmsInbox.readInbox(context, beforeMillis = cutoff, includePictureOnly = true) { progress = it }
+        progress = "Checking ${old.size} messages…"
+        return old.filter { it.threadId !in replied && it.address.isNotEmpty() }
+            .also { pruneCache = now to it; progress = "" }
     }
+
+    @Volatile private var pruneCache: Pair<Long, List<SmsInbox.Message>>? = null
+    private val PRUNE_CACHE_MS = java.util.concurrent.TimeUnit.MINUTES.toMillis(15)
 
     @Synchronized
     fun prunePreview(context: Context): List<PruneGroup> =
@@ -211,6 +230,7 @@ object Cleanup {
                 store.filePruned(m)
             }
         }
+        pruneCache = null
         SmsInbox.delete(context, ids) { progress = it }
         progress = "Checking that they're gone…"
         val stillThere = SmsInbox.stillPresent(context, ids)
@@ -229,17 +249,16 @@ object Cleanup {
     fun restore(context: Context, ids: Collection<Long>): Int {
         if (!isDefaultSmsApp(context)) return 0
         val store = SpamStore.get(context)
-        var restored = 0
-        ids.forEachIndexed { i, id ->
-            if (i % 25 == 0) progress = "Restoring… $i of ${ids.size}"
-            val e = store.get(id) ?: return@forEachIndexed
-            if (SmsInbox.insertIncoming(context, e.sender, e.body, e.messageTime, read = true)) {
-                store.remove(id)
-                restored++
-            }
+        val entries = store.getAll(ids)
+        val restored = ArrayList<Long>(entries.size)
+        entries.forEachIndexed { i, e ->
+            if (i % 25 == 0) progress = "Restoring… $i of ${entries.size}"
+            if (SmsInbox.insertIncoming(context, e.sender, e.body, e.messageTime, read = true)) restored += e.id
         }
+        store.removeAll(restored)
+        pruneCache = null
         progress = ""
-        return restored
+        return restored.size
     }
 
     /**
@@ -287,6 +306,7 @@ object Cleanup {
         val store = SpamStore.get(context)
         val pending = store.pendingSmsIds()
         if (!isDefaultSmsApp(context)) return 0 to pending.size
+        pruneCache = null
         SmsInbox.delete(context, pending) { progress = it }
         // Verify against the inbox rather than trusting delete() counts.
         progress = "Checking that they're gone…"

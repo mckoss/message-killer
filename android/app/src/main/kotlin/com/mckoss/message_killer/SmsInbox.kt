@@ -33,18 +33,20 @@ object SmsInbox {
      * Reads received texts and picture messages.
      * [sinceMillis]: only messages received after this time (0 = everything).
      * [threadIds]: only these conversations (null = all).
+     * [beforeMillis]: only messages received before this time (0 = no limit).
      */
     fun readInbox(
         context: Context,
         sinceMillis: Long = 0,
+        beforeMillis: Long = 0,
         threadIds: Collection<Long>? = null,
         /** Also return picture messages with no text (body "[Picture message]"). */
         includePictureOnly: Boolean = false,
         onProgress: (String) -> Unit = {},
     ): List<Message> {
         if (threadIds != null && threadIds.isEmpty()) return emptyList()
-        val sms = readSms(context, sinceMillis, threadIds, onProgress)
-        val mms = readMms(context, sinceMillis, threadIds, includePictureOnly, onProgress)
+        val sms = readSms(context, sinceMillis, beforeMillis, threadIds, onProgress)
+        val mms = readMms(context, sinceMillis, beforeMillis, threadIds, includePictureOnly, onProgress)
         return (sms + mms).sortedByDescending { it.date }
     }
 
@@ -63,12 +65,18 @@ object SmsInbox {
     }
 
     /** SQL selection for an optional date floor and conversation filter. */
-    private fun selection(dateColumn: String, since: Long, threadIds: Collection<Long>?): Pair<String?, Array<String>?> {
+    private fun selection(
+        dateColumn: String, since: Long, before: Long, threadIds: Collection<Long>?,
+    ): Pair<String?, Array<String>?> {
         val clauses = ArrayList<String>()
         val args = ArrayList<String>()
         if (since > 0) {
             clauses += "$dateColumn > ?"
             args += since.toString()
+        }
+        if (before > 0) {
+            clauses += "$dateColumn < ?"
+            args += before.toString()
         }
         if (threadIds != null) {
             clauses += "thread_id IN (${threadIds.joinToString(",") { "?" }})"
@@ -78,12 +86,12 @@ object SmsInbox {
     }
 
     private fun readSms(
-        context: Context, since: Long, threadIds: Collection<Long>?, onProgress: (String) -> Unit,
+        context: Context, since: Long, before: Long, threadIds: Collection<Long>?, onProgress: (String) -> Unit,
     ): List<Message> {
         val projection = arrayOf(
             Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms.THREAD_ID,
         )
-        val (where, args) = selection(Telephony.Sms.DATE, since, threadIds)
+        val (where, args) = selection(Telephony.Sms.DATE, since, before, threadIds)
         val cursor = context.contentResolver.query(
             Telephony.Sms.Inbox.CONTENT_URI, projection, where, args, "${Telephony.Sms.DATE} DESC",
         ) ?: return emptyList()
@@ -108,14 +116,14 @@ object SmsInbox {
      * text lives in text/plain parts and the sender in the addr table (type 137 = from).
      */
     private fun readMms(
-        context: Context, since: Long, threadIds: Collection<Long>?, includePictureOnly: Boolean,
+        context: Context, since: Long, before: Long, threadIds: Collection<Long>?, includePictureOnly: Boolean,
         onProgress: (String) -> Unit,
     ): List<Message> {
         val resolver = context.contentResolver
         // Matching MMS rows first (MMS dates are in seconds).
         data class Row(val id: Long, val date: Long, val thread: Long)
         val rows = ArrayList<Row>()
-        val (where, args) = selection(Telephony.Mms.DATE, since / 1000, threadIds)
+        val (where, args) = selection(Telephony.Mms.DATE, since / 1000, before / 1000, threadIds)
         resolver.query(
             Telephony.Mms.Inbox.CONTENT_URI,
             arrayOf(Telephony.Mms._ID, Telephony.Mms.DATE, Telephony.Mms.THREAD_ID),

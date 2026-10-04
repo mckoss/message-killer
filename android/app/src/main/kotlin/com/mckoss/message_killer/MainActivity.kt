@@ -169,7 +169,7 @@ class MainActivity : FlutterActivity() {
                 result.success(null)
             }
             "classify" -> {
-                val r = settings.classifier().classify(
+                val r = settings.liveClassifier().classify(
                     call.argument<String>("text") ?: "", call.argument<String>("sender"),
                 )
                 result.success(mapOf(

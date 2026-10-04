@@ -43,10 +43,10 @@ class MessageNotificationListener : NotificationListenerService() {
         if (messages.isEmpty()) return
 
         // Texts from contacts are never filtered.
-        val contacts = ContactsChecker(this)
+        val contacts = ContactsChecker.get(this)
         if (messages.any { contacts.isContact(it.sender, it.senderUri) }) return
 
-        val classifier = settings.classifier()
+        val classifier = settings.liveClassifier()
         val results = messages.map { it to classifier.classify(it.text, it.sender) }
         if (!results.all { it.second.isSpam }) return
 

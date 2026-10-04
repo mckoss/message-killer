@@ -51,25 +51,50 @@ class Classifier(
 
     private val allowed = allowedSenders.map(::normalizeSender).filter { it.isNotEmpty() }.toSet()
     private val tainted = taintedSenders.map(::normalizeSender).filter { it.isNotEmpty() }.toSet()
+    private val rules = BUILT_IN_RULES + customRules
 
-    fun classify(body: String, sender: String? = null): Result {
-        if (sender != null && normalizeSender(sender) in allowed) {
-            return Result(0.0, listOf("Sender is on your allow list"), null)
-        }
+    /** Rule matches for one body, before anything sender-specific. */
+    private class Matched(val scores: Map<Category, Double>, val reasons: Map<Category, List<String>>)
+
+    /**
+     * Rule matches by body. Bulk texts arrive word-for-word from many numbers, and
+     * a full scan re-checks Spam folder entries it already saw in the inbox, so
+     * each distinct body runs the ~40 regexes once per classifier.
+     */
+    private val matched = object : LinkedHashMap<String, Matched>(256, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Matched>) = size > MEMO_SIZE
+    }
+
+    private fun match(body: String): Matched {
+        synchronized(matched) { matched[body] }?.let { return it }
         val scores = HashMap<Category, Double>()
         val reasons = HashMap<Category, MutableList<String>>()
-        fun add(label: String, weight: Double, categories: Set<Category>) {
-            for (c in categories) {
-                scores[c] = (scores[c] ?: 0.0) + weight
-                reasons.getOrPut(c) { mutableListOf() } += label
+        for (rule in rules) {
+            if (!rule.pattern.containsMatchIn(body)) continue
+            for (c in rule.categories) {
+                scores[c] = (scores[c] ?: 0.0) + rule.weight
+                reasons.getOrPut(c) { mutableListOf() } += rule.label
             }
         }
-        for (rule in BUILT_IN_RULES) if (rule.pattern.containsMatchIn(body)) add(rule.label, rule.weight, rule.categories)
-        for (rule in customRules) if (rule.pattern.containsMatchIn(body)) add(rule.label, rule.weight, rule.categories)
-        if (sender != null && SHORT_CODE.matches(sender.trim())) {
-            add("Sent from a short code", 0.5, setOf(Category.POLITICAL, Category.COMMERCIAL))
+        return Matched(scores, reasons).also { synchronized(matched) { matched[body] = it } }
+    }
+
+    fun classify(body: String, sender: String? = null): Result {
+        val normalized = sender?.let(::normalizeSender)
+        if (normalized != null && normalized in allowed) {
+            return Result(0.0, listOf("Sender is on your allow list"), null)
         }
-        return withTaint(decide(scores, reasons), sender, tainted)
+        val m = match(body)
+        if (sender == null || !SHORT_CODE.matches(sender.trim())) {
+            return withTaintNormalized(decide(m.scores, m.reasons), normalized, tainted)
+        }
+        val scores = HashMap(m.scores)
+        val reasons = HashMap<Category, List<String>>(m.reasons)
+        for (c in SHORT_CODE_CATEGORIES) {
+            scores[c] = (scores[c] ?: 0.0) + 0.5
+            reasons[c] = reasons[c].orEmpty() + "Sent from a short code"
+        }
+        return withTaintNormalized(decide(scores, reasons), normalized, tainted)
     }
 
     /**
@@ -77,9 +102,12 @@ class Classifier(
      * [sender] is in [taintedNormalized]. Verification codes keep their large
      * negative score, so they stay visible.
      */
-    fun withTaint(result: Result, sender: String?, taintedNormalized: Set<String>): Result {
-        if (sender == null || Category.POLITICAL !in enabled) return result
-        if (normalizeSender(sender) !in taintedNormalized) return result
+    fun withTaint(result: Result, sender: String?, taintedNormalized: Set<String>): Result =
+        withTaintNormalized(result, sender?.let(::normalizeSender), taintedNormalized)
+
+    private fun withTaintNormalized(result: Result, normalized: String?, taintedNormalized: Set<String>): Result {
+        if (normalized == null || Category.POLITICAL !in enabled) return result
+        if (normalized !in taintedNormalized) return result
         val political = result.reasonsBy[Category.POLITICAL].orEmpty()
         if (TAINTED_REASON in political) return result
         val scores = result.scores.toMutableMap()
@@ -127,9 +155,7 @@ class Classifier(
                 add("logic=$SCAN_LOGIC_VERSION")
                 add("threshold=$THRESHOLD")
                 add("categories=" + enabled.map { it.key }.sorted().joinToString(","))
-                BUILT_IN_RULES.forEach {
-                    add("${it.label}|${it.weight}|${it.pattern.pattern}|${it.pattern.options}|${it.categories.map { c -> c.key }.sorted()}")
-                }
+                add(BUILT_IN_RULES_TEXT)
                 customKeywords.map { it.trim().lowercase() }.sorted().forEach { add("kw=$it") }
                 allowedSenders.map(::normalizeSender).sorted().forEach { add("allow=$it") }
             }
@@ -139,6 +165,17 @@ class Classifier(
         }
 
         private val SHORT_CODE = Regex("""^\d{5,6}$""")
+        private val SHORT_CODE_CATEGORIES = listOf(Category.POLITICAL, Category.COMMERCIAL)
+
+        /** Distinct bodies remembered per classifier (see [match]). */
+        private const val MEMO_SIZE = 50_000
+
+        /** The built-in rules as text for [fingerprint], built once. */
+        private val BUILT_IN_RULES_TEXT by lazy {
+            BUILT_IN_RULES.joinToString("\n") {
+                "${it.label}|${it.weight}|${it.pattern.pattern}|${it.pattern.options}|${it.categories.map { c -> c.key }.sorted()}"
+            }
+        }
 
         private fun phrase(p: String) = Regex("""(?<![\p{L}\p{N}])(?:$p)(?![\p{L}\p{N}])""", RegexOption.IGNORE_CASE)
 

@@ -34,9 +34,21 @@ class _SpamFolderScreenState extends State<SpamFolderScreen> {
     _load();
   }
 
+  /// Entries per category (and null = all), computed once per load rather
+  /// than re-filtered on every build.
+  Map<SpamCategory?, List<SpamEntry>> _byCategory = const {};
+
   Future<void> _load() async {
     final entries = await widget.api.listSpam();
-    if (mounted) setState(() => _entries = entries);
+    if (!mounted) return;
+    final byCategory = <SpamCategory?, List<SpamEntry>>{null: entries};
+    for (final e in entries) {
+      (byCategory[e.category] ??= []).add(e);
+    }
+    setState(() {
+      _entries = entries;
+      _byCategory = byCategory;
+    });
   }
 
   Future<void> _openEntry(SpamEntry entry) async {
@@ -51,9 +63,7 @@ class _SpamFolderScreenState extends State<SpamFolderScreen> {
   @override
   Widget build(BuildContext context) {
     final all = _entries;
-    final entries = all
-        ?.where((e) => _filter == null || e.category == _filter)
-        .toList();
+    final entries = all == null ? null : (_byCategory[_filter] ?? const []);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Spam folder'),
@@ -92,7 +102,7 @@ class _SpamFolderScreenState extends State<SpamFolderScreen> {
                                 ChoiceChip(
                                   label: Text(
                                     '${c?.label ?? 'All'} '
-                                    '(${all!.where((e) => c == null || e.category == c).length})',
+                                    '(${_byCategory[c]?.length ?? 0})',
                                   ),
                                   selected: _filter == c,
                                   onSelected: (_) =>

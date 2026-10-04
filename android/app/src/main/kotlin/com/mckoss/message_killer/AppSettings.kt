@@ -52,18 +52,42 @@ class AppSettings(context: Context) {
     fun classifier(taintedSenders: Collection<String> = SpamStore.get(appContext).taintedSenders()) =
         Classifier(customKeywords, allowedSenders, taintedSenders, enabledCategories)
 
+    /**
+     * The classifier for one-off checks (each notification, each incoming SMS),
+     * reused until the settings or the Spam folder change, so it keeps its memo
+     * and doesn't re-read the flagged senders every time.
+     */
+    fun liveClassifier(): Classifier {
+        val key = listOf(
+            prefs.getString(KEY_CUSTOM_KEYWORDS, ""), prefs.getString(KEY_ALLOWED_SENDERS, ""),
+            prefs.getString(KEY_CATEGORIES, null), SpamStore.get(appContext).version,
+        )
+        liveCache?.let { (k, c) -> if (k == key) return c }
+        return classifier().also { liveCache = key to it }
+    }
+
+    /**
+     * Normalized allow list, rebuilt only when the stored list changes (scans
+     * check every message against it).
+     */
+    private val allowedNormalized: Set<String>
+        get() {
+            val raw = prefs.getString(KEY_ALLOWED_SENDERS, "")!!
+            allowedCache?.let { (cachedRaw, set) -> if (cachedRaw == raw) return set }
+            val set = readList(KEY_ALLOWED_SENDERS).map(Classifier::normalizeSender).filter { it.isNotEmpty() }.toSet()
+            allowedCache = raw to set
+            return set
+        }
+
     fun isAllowed(sender: String): Boolean {
         val normalized = Classifier.normalizeSender(sender)
-        return normalized.isNotEmpty() && allowedSenders.any { Classifier.normalizeSender(it) == normalized }
+        return normalized.isNotEmpty() && normalized in allowedNormalized
     }
 
     fun allowSender(sender: String) {
         if (sender.isBlank()) return
         val normalized = Classifier.normalizeSender(sender)
-        val current = allowedSenders
-        if (current.none { Classifier.normalizeSender(it) == normalized }) {
-            allowedSenders = current + sender.trim()
-        }
+        if (normalized !in allowedNormalized) allowedSenders = allowedSenders + sender.trim()
     }
 
     // Stored newline-separated so order is preserved (StringSet is unordered).
@@ -76,6 +100,10 @@ class AppSettings(context: Context) {
     }
 
     companion object {
+        /** (stored allow list, its normalized set); shared by all instances. */
+        @Volatile private var allowedCache: Pair<String, Set<String>>? = null
+        @Volatile private var liveCache: Pair<List<Any?>, Classifier>? = null
+
         private const val KEY_LIVE_FILTER = "live_filter"
         private const val KEY_DAILY_CLEANUP = "daily_cleanup"
         private const val KEY_CUSTOM_KEYWORDS = "custom_keywords"

@@ -21,6 +21,9 @@ class RestoreScreen extends StatefulWidget {
 class _RestoreScreenState extends State<RestoreScreen> {
   List<SpamEntry>? _entries;
 
+  /// [_entries] grouped by sender, computed once per load.
+  List<List<SpamEntry>> _groups = const [];
+
   /// Ids checked for restore (all, initially).
   final _selected = <int>{};
 
@@ -38,6 +41,7 @@ class _RestoreScreenState extends State<RestoreScreen> {
     if (!mounted) return;
     setState(() {
       _entries = entries;
+      _groups = _bySender(entries);
       _selected
         ..clear()
         ..addAll(entries.map((e) => e.id));
@@ -78,30 +82,32 @@ class _RestoreScreenState extends State<RestoreScreen> {
   }
 
   /// One sender's header (restore-all checkbox, "Always allow" switch) and texts.
-  List<Widget> _senderSection(List<SpamEntry> group) {
+  List<Widget Function()> _senderSection(List<SpamEntry> group) {
     final sender = group.first.sender;
-    final ids = group.map((e) => e.id).toSet();
-    final checked = ids.where(_selected.contains).length;
     final theme = Theme.of(context);
     return [
-      const Divider(height: 1),
-      CheckboxListTile(
-        tileColor: theme.colorScheme.surfaceContainerHighest,
-        tristate: true,
-        value: checked == ids.length ? true : (checked == 0 ? false : null),
-        onChanged: (_) => setState(() {
-          checked == ids.length
-              ? _selected.removeAll(ids)
-              : _selected.addAll(ids);
-        }),
-        title: Text(
-          sender.isEmpty ? 'Unknown sender' : sender,
-          style: theme.textTheme.titleMedium,
-        ),
-        subtitle: Text('Restore $checked of ${plural(ids.length, 'text')}'),
-      ),
+      () => const Divider(height: 1),
+      () {
+        final ids = group.map((e) => e.id).toSet();
+        final checked = ids.where(_selected.contains).length;
+        return CheckboxListTile(
+          tileColor: theme.colorScheme.surfaceContainerHighest,
+          tristate: true,
+          value: checked == ids.length ? true : (checked == 0 ? false : null),
+          onChanged: (_) => setState(() {
+            checked == ids.length
+                ? _selected.removeAll(ids)
+                : _selected.addAll(ids);
+          }),
+          title: Text(
+            sender.isEmpty ? 'Unknown sender' : sender,
+            style: theme.textTheme.titleMedium,
+          ),
+          subtitle: Text('Restore $checked of ${plural(ids.length, 'text')}'),
+        );
+      },
       if (sender.isNotEmpty)
-        SwitchListTile(
+        () => SwitchListTile(
           dense: true,
           contentPadding: const EdgeInsets.only(left: 32, right: 16),
           title: Text('Always allow $sender'),
@@ -112,7 +118,7 @@ class _RestoreScreenState extends State<RestoreScreen> {
           }),
         ),
       for (final e in group)
-        CheckboxListTile(
+        () => CheckboxListTile(
           contentPadding: const EdgeInsets.only(left: 32, right: 16),
           value: _selected.contains(e.id),
           onChanged: (on) => setState(() {
@@ -131,8 +137,8 @@ class _RestoreScreenState extends State<RestoreScreen> {
   Widget build(BuildContext context) {
     final entries = _entries;
     final theme = Theme.of(context);
-    final restoreCount =
-        entries?.where((e) => _selected.contains(e.id)).length ?? 0;
+    // _selected only ever holds ids from _entries.
+    final restoreCount = _selected.length;
     final keepCount = (entries?.length ?? 0) - restoreCount;
 
     return Scaffold(
@@ -154,25 +160,31 @@ class _RestoreScreenState extends State<RestoreScreen> {
       ),
       body: entries == null
           ? const LoadingView('Re-checking deleted texts…')
-          : ListView(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    entries.isEmpty
-                        ? 'Nothing to restore.'
-                        : '${plural(entries.length, 'deleted text')} no longer '
-                              '${entries.length == 1 ? 'looks' : 'look'} like spam under the current rules. '
-                              'Check the texts (or whole numbers) to put back in your inbox; unchecked '
-                              'texts are confirmed as spam and won\'t be offered again. Switch on '
-                              '"Always allow" for numbers you never want filtered. '
-                              '(Picture messages come back as text only.)',
-                    style: theme.textTheme.bodyMedium,
+          : Builder(
+              builder: (context) {
+                // Built lazily: a long list only builds the rows on screen.
+                final rows = <Widget Function()>[
+                  () => Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      entries.isEmpty
+                          ? 'Nothing to restore.'
+                          : '${plural(entries.length, 'deleted text')} no longer '
+                                '${entries.length == 1 ? 'looks' : 'look'} like spam under the current rules. '
+                                'Check the texts (or whole numbers) to put back in your inbox; unchecked '
+                                'texts are confirmed as spam and won\'t be offered again. Switch on '
+                                '"Always allow" for numbers you never want filtered. '
+                                '(Picture messages come back as text only.)',
+                      style: theme.textTheme.bodyMedium,
+                    ),
                   ),
-                ),
-                for (final group in _bySender(entries))
-                  ..._senderSection(group),
-              ],
+                  for (final group in _groups) ..._senderSection(group),
+                ];
+                return ListView.builder(
+                  itemCount: rows.length,
+                  itemBuilder: (_, i) => rows[i](),
+                );
+              },
             ),
       bottomNavigationBar: entries == null || entries.isEmpty
           ? null

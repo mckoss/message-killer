@@ -5,14 +5,13 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import java.util.concurrent.TimeUnit
-import kotlin.math.abs
 
 /**
  * The in-app Spam folder: a copy of every political message we silenced or
  * removed from the inbox. Entries are kept for [RETENTION_DAYS] days.
  */
 class SpamStore private constructor(context: Context) :
-    SQLiteOpenHelper(context.applicationContext, "spam.db", null, 5) {
+    SQLiteOpenHelper(context.applicationContext, "spam.db", null, 6) {
 
     data class Entry(
         val id: Long,
@@ -65,8 +64,31 @@ class SpamStore private constructor(context: Context) :
             """.trimIndent()
         )
         db.execSQL("CREATE INDEX spam_time ON spam(message_time)")
+        createIndexes(db)
         createTainted(db)
         createHistory(db)
+    }
+
+    /** For pending-delete lookups and the 90-day purge (both ran full table scans). */
+    private fun createIndexes(db: SQLiteDatabase) {
+        db.execSQL("CREATE INDEX IF NOT EXISTS spam_status ON spam(status)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS spam_filed ON spam(filed_at)")
+    }
+
+    /**
+     * Bumped on every write, so callers can cache results computed from the
+     * Spam folder (e.g. the restorable list) until something changes.
+     */
+    @Volatile var version = 0L
+        private set
+
+    override fun onOpen(db: SQLiteDatabase) {
+        super.onOpen(db)
+        version++
+    }
+
+    private fun changed() {
+        version++
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -84,6 +106,7 @@ class SpamStore private constructor(context: Context) :
             db.execSQL("ALTER TABLE spam ADD COLUMN confirmed INTEGER NOT NULL DEFAULT 0")
         }
         if (oldVersion in 1..4) createHistory(db)
+        if (oldVersion in 1..5) createIndexes(db)
     }
 
     /**
@@ -163,6 +186,7 @@ class SpamStore private constructor(context: Context) :
             return result
         } finally {
             db.endTransaction()
+            changed()
         }
     }
 
@@ -202,6 +226,7 @@ class SpamStore private constructor(context: Context) :
     @Synchronized
     fun untaint(sender: String) {
         writableDatabase.delete("tainted_senders", "sender = ?", arrayOf(Classifier.normalizeSender(sender)))
+        changed()
     }
 
     /** Records a message whose notification we cancelled. Returns false if it was already recorded. */
@@ -224,6 +249,7 @@ class SpamStore private constructor(context: Context) :
         }
         val match = findSimilar(sms.body, sms.date, requireNoSmsId = true)
         if (match != null) {
+            changed()
             db.update(
                 "spam",
                 ContentValues().apply {
@@ -256,56 +282,52 @@ class SpamStore private constructor(context: Context) :
     /** Removes pending (not yet deleted) entries matching [predicate]; returns how many. */
     @Synchronized
     fun removePendingWhere(predicate: (Entry) -> Boolean): Int {
-        val doomed = list().filter { it.status == STATUS_PENDING && predicate(it) }
-        val db = writableDatabase
-        db.beginTransaction()
-        try {
-            for (e in doomed) db.delete("spam", "id = ?", arrayOf(e.id.toString()))
-            db.setTransactionSuccessful()
-        } finally {
-            db.endTransaction()
-        }
+        val doomed = query("WHERE status = ?", STATUS_PENDING).filter(predicate).map { it.id }
+        inTransaction { forEachChunk(doomed) { where, args -> writableDatabase.delete("spam", "id $where", args) } }
         return doomed.size
     }
 
     @Synchronized
-    fun markDeleted(smsIds: Collection<Long>) {
-        val db = writableDatabase
-        db.beginTransaction()
-        try {
-            for (id in smsIds) {
-                db.update("spam", ContentValues().apply { put("status", STATUS_DELETED) },
-                    "sms_id = ?", arrayOf(id.toString()))
-            }
-            db.setTransactionSuccessful()
-        } finally {
-            db.endTransaction()
+    fun markDeleted(smsIds: Collection<Long>) = inTransaction {
+        val values = ContentValues().apply { put("status", STATUS_DELETED) }
+        forEachChunk(smsIds) { where, args -> writableDatabase.update("spam", values, "sms_id $where", args) }
+    }
+
+    /** Runs [block] with "IN (?, ?, …)" and its arguments for each chunk of [ids]. */
+    private fun forEachChunk(ids: Collection<Long>, block: (String, Array<String>) -> Unit) {
+        for (chunk in ids.chunked(500)) {
+            block("IN (${chunk.joinToString(",") { "?" }})", chunk.map { it.toString() }.toTypedArray())
         }
     }
 
     @Synchronized
-    fun get(id: Long): Entry? =
-        readableDatabase.rawQuery("SELECT * FROM spam WHERE id = ?", arrayOf(id.toString()))
-            .use { c -> if (c.moveToFirst()) c.toEntry() else null }
+    fun get(id: Long): Entry? = query("WHERE id = ?", id.toString()).firstOrNull()
+
+    /** Entries by id, in one query per 500. */
+    @Synchronized
+    fun getAll(ids: Collection<Long>): List<Entry> = buildList {
+        forEachChunk(ids) { where, args -> addAll(query("WHERE id $where", *args)) }
+    }
 
     @Synchronized
-    fun list(limit: Int = 100_000): List<Entry> =
-        readableDatabase.rawQuery(
-            "SELECT * FROM spam ORDER BY message_time DESC LIMIT ?", arrayOf(limit.toString())
-        ).use { c -> buildList { while (c.moveToNext()) add(c.toEntry()) } }
+    fun list(limit: Int = 100_000): List<Entry> = query("ORDER BY message_time DESC LIMIT ?", limit.toString())
+
+    private fun query(clause: String, vararg args: String): List<Entry> =
+        readableDatabase.rawQuery("SELECT * FROM spam $clause", args).use { c -> c.entries() }
 
     /** Marks entries as confirmed spam so they're never offered for restore. */
     @Synchronized
     fun confirm(ids: Collection<Long>) = inTransaction {
-        val db = writableDatabase
-        for (id in ids) {
-            db.update("spam", ContentValues().apply { put("confirmed", 1) }, "id = ?", arrayOf(id.toString()))
-        }
+        val values = ContentValues().apply { put("confirmed", 1) }
+        forEachChunk(ids) { where, args -> writableDatabase.update("spam", values, "id $where", args) }
     }
 
     @Synchronized
-    fun remove(id: Long) {
-        writableDatabase.delete("spam", "id = ?", arrayOf(id.toString()))
+    fun remove(id: Long) = removeAll(listOf(id))
+
+    @Synchronized
+    fun removeAll(ids: Collection<Long>) = inTransaction {
+        forEachChunk(ids) { where, args -> writableDatabase.delete("spam", "id $where", args) }
     }
 
     @Synchronized
@@ -362,6 +384,7 @@ class SpamStore private constructor(context: Context) :
         messageTime: Long, result: Classifier.Result, smsId: Long?,
         category: String = (result.category ?: Classifier.Category.POLITICAL).key,
     ) {
+        changed()
         writableDatabase.insert("spam", null, ContentValues().apply {
             put("source", source)
             put("status", status)
@@ -381,31 +404,46 @@ class SpamStore private constructor(context: Context) :
 
     /** Same text received within [MATCH_WINDOW_MS] of [time] is treated as the same message. */
     private fun findSimilar(body: String, time: Long, requireNoSmsId: Boolean): Long? {
+        // The time range uses the message_time index; matching on body alone
+        // scanned the whole table for every message filed.
         val extra = if (requireNoSmsId) " AND sms_id IS NULL" else ""
-        readableDatabase.rawQuery(
-            "SELECT id, message_time FROM spam WHERE body = ?$extra", arrayOf(body)
-        ).use { c ->
-            while (c.moveToNext()) {
-                if (abs(c.getLong(1) - time) <= MATCH_WINDOW_MS) return c.getLong(0)
-            }
-        }
-        return null
+        return readableDatabase.rawQuery(
+            "SELECT id FROM spam WHERE message_time BETWEEN ? AND ? AND body = ?$extra LIMIT 1",
+            arrayOf((time - MATCH_WINDOW_MS).toString(), (time + MATCH_WINDOW_MS).toString(), body),
+        ).use { c -> if (c.moveToFirst()) c.getLong(0) else null }
     }
 
-    private fun android.database.Cursor.toEntry() = Entry(
-        id = getLong(getColumnIndexOrThrow("id")),
-        source = getString(getColumnIndexOrThrow("source")),
-        status = getString(getColumnIndexOrThrow("status")),
-        sender = getString(getColumnIndexOrThrow("sender")),
-        body = getString(getColumnIndexOrThrow("body")),
-        messageTime = getLong(getColumnIndexOrThrow("message_time")),
-        filedAt = getLong(getColumnIndexOrThrow("filed_at")),
-        score = getDouble(getColumnIndexOrThrow("score")),
-        reasons = getString(getColumnIndexOrThrow("reasons")).split('\n').filter { it.isNotEmpty() },
-        smsId = getColumnIndexOrThrow("sms_id").let { if (isNull(it)) null else getLong(it) },
-        category = getString(getColumnIndexOrThrow("category")),
-        confirmed = getInt(getColumnIndexOrThrow("confirmed")) != 0,
-    )
+    /** Reads every row, looking up column indexes once rather than per row. */
+    private fun android.database.Cursor.entries(): List<Entry> {
+        val id = getColumnIndexOrThrow("id")
+        val source = getColumnIndexOrThrow("source")
+        val status = getColumnIndexOrThrow("status")
+        val sender = getColumnIndexOrThrow("sender")
+        val body = getColumnIndexOrThrow("body")
+        val messageTime = getColumnIndexOrThrow("message_time")
+        val filedAt = getColumnIndexOrThrow("filed_at")
+        val score = getColumnIndexOrThrow("score")
+        val reasons = getColumnIndexOrThrow("reasons")
+        val smsId = getColumnIndexOrThrow("sms_id")
+        val category = getColumnIndexOrThrow("category")
+        val confirmed = getColumnIndexOrThrow("confirmed")
+        return buildList(count) {
+            while (moveToNext()) add(Entry(
+                id = getLong(id),
+                source = getString(source),
+                status = getString(status),
+                sender = getString(sender),
+                body = getString(body),
+                messageTime = getLong(messageTime),
+                filedAt = getLong(filedAt),
+                score = getDouble(score),
+                reasons = getString(reasons).split('\n').filter { it.isNotEmpty() },
+                smsId = if (isNull(smsId)) null else getLong(smsId),
+                category = getString(category),
+                confirmed = getInt(confirmed) != 0,
+            ))
+        }
+    }
 
     companion object {
         const val RETENTION_DAYS = 90L

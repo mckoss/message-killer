@@ -3,14 +3,18 @@ package com.mckoss.message_killer
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.database.ContentObserver
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.provider.ContactsContract
 import android.provider.ContactsContract.CommonDataKinds.Phone
 
 /**
  * Answers "is this sender one of my contacts?" (including Google contacts synced
- * to the phone). Contacts are never filtered. Results are cached per instance,
- * so create one per scan / notification rather than keeping it around.
+ * to the phone). Contacts are never filtered. Use [get]: one shared instance,
+ * dropped whenever the contacts change, so every scan and notification doesn't
+ * reload the whole address book.
  */
 class ContactsChecker(private val context: Context) {
     val hasPermission: Boolean =
@@ -71,6 +75,37 @@ class ContactsChecker(private val context: Context) {
     }
 
     companion object {
+        @Volatile private var shared: ContactsChecker? = null
+        @Volatile private var observing = false
+
+        /** Bumped whenever contacts change; part of cache keys that depend on contacts. */
+        @Volatile var generation = 0L
+            private set
+
+        fun get(context: Context): ContactsChecker {
+            shared?.let { if (it.hasPermission) return it }
+            val checker = ContactsChecker(context.applicationContext)
+            if (checker.hasPermission) {
+                synchronized(this) {
+                    if (!observing) {
+                        observing = true
+                        context.applicationContext.contentResolver.registerContentObserver(
+                            ContactsContract.AUTHORITY_URI, true,
+                            object : ContentObserver(Handler(Looper.getMainLooper())) {
+                                override fun onChange(selfChange: Boolean) {
+                                    shared = null
+                                    generation++
+                                }
+                            },
+                        )
+                    }
+                }
+                shared = checker
+                generation++ // permission just granted, or first load
+            }
+            return checker
+        }
+
         fun looksLikePhoneNumber(s: String): Boolean {
             val digits = s.count { it.isDigit() }
             return digits >= 3 && s.all { it.isDigit() || it in "+-() ." }
