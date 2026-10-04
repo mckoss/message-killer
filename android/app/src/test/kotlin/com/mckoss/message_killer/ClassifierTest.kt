@@ -54,6 +54,10 @@ class ClassifierTest {
 
     private val normal = listOf(
         "Hey, are we still on for dinner tonight?",
+        "Did you get my message about dinner?",
+        "How many votes did the HOA proposal get?",
+        "Hi Mom. Running late, home by 7.",
+        "Looking for people to join our pickleball group on Saturday",
         "Your verification code is 482913. Don't share it with anyone.",
         "G-123456 is your Google verification code.",
         "Your package has been delivered. Reply STOP to unsubscribe.",
@@ -68,6 +72,9 @@ class ClassifierTest {
 
     // More political texts that got through (Oct 2026), links shortened.
     private val morePolitical = listOf(
+        "Alex, you've been selected for a 1-min survey. Your input directly shapes Democratic strategy. Will you take it? http://s.alchemer.com/s3/xxxx?source=XXXX\n-PP,\nStop to End",
+        "Hi Alex, I'm Sam w/ Contest Every Race. We're looking for folks in King County to help their local Dems. Want more info?\nStop to End",
+        "Team Jane Doe: John Roe lost by just 20,217 votes in 2024. Keep Michigan blue by chipping in today. \n\nhttps://janeforsenate.co/xxxx\n\nStop to end",
         "Mike, the GOP is FALLING APART!\n\nWe only need to FLIP 4 seats to win! We're still \$10,473 short with only 24 hours left until our weekly fundraising deadline. Please pitch in something generous (300% MATCHED) >>> https://example.win/l/xxxxx\n\nTime is running out,\n\nCongressional Black Caucus PAC\n\nText STOP to quit",
         "Hello, it's Research-Polls! We are conducting a study on local issues in Washington. Your response is voluntary and will be kept strictly confidential! Let us know your thoughts and what you would like to see changed: https://example.com/xxxx You may Opt-Out at any time by replying STOP. Want to receive studies in the future? Reply YES",
         "Hi, I am Mia from US Speaks. We're polling WA residents. Can you answer a 4-question poll?\n\n1) Yes\n2) No (or QUIT Survey)",
@@ -123,6 +130,8 @@ class ClassifierTest {
         "birddogs: \"Somehow perfectly acceptable at work\" - HR\n\nBrand new pants for fall:\nhttps://birddogs.pscrpt.io/xxxx\n\nDress pants with undressed comfort.",
         "Flash sale! 30% off everything today only. Reply STOP to opt out",
         "FLASH SALE TODAY: 30% off everything. Shop shop.example.com/l/abc123 Reply STOP to opt out",
+        "This month only! College students can save an extra 10% with Safeway forU. Txt STOP 2 end",
+        "Hey Alex, Rob at GV Solutions. Ready to simplify the sale of 123 Main Cir? We're experts in fair dealings. Ready for a chat?",
     )
 
     private val phishing = listOf(
@@ -130,6 +139,8 @@ class ClassifierTest {
         "Toll Services: You have an unpaid toll balance of \$6.99. Pay within 24 hours to avoid late fees: ezdrive-pay.xyz",
         "Your Apple ID has been locked due to unusual sign-in activity. Verify your account: apple-id-check.icu",
         "Congratulations! You have won a \$500 gift card. Claim your reward: bit.ly/xyz",
+        "Diane are u getting this",
+        "Hi Anna. I just got back from a trip to Italy. Currently in SF. Could you drop my dog off at my place before 6 pm today? Thanks :)",
     )
 
     @Test

@@ -200,7 +200,7 @@ class Classifier(
 
             // Donation asks.
             Rule("Asks for a donation", 2.0,
-                phrase("""donate|donation|chip\s+in|pitch\s+in|contribute|contribution|rush\s+\$\d+|give\s+\$\d+|hail\s+mary\s+(request|ask|appeal)"""), P),
+                phrase("""donate|donation|chip(ping)?\s+in|pitch(ing)?\s+in|contribute|contribution|rush\s+\$\d+|give\s+\$\d+|hail\s+mary\s+(request|ask|appeal)"""), P),
             Rule("Dollar amount ask (\$X now/today)", 1.0,
                 Regex("""\$\s?\d{1,4}(\.\d\d)?\s+(or\s+more\s+)?(now|today|right\s+now|immediately|before)""", RegexOption.IGNORE_CASE), P),
             Rule("Donation match / multiplier", 1.5,
@@ -213,13 +213,21 @@ class Classifier(
             Rule("PAC / committee", 1.5,
                 phrase("""(super\s+)?pac|dnc|rnc|dccc|nrcc|dscc|nrsc|dga|rga|political\s+action\s+committee"""), P),
             Rule("Party / partisan terms", 1.0,
-                phrase("""democrats?|democratic\s+party|republicans?|gop|maga|liberals?|conservatives?|progressives?"""), P),
+                phrase("""democrats?|dems|democratic\s+(party|strategy|candidates?|majority|nominee|leaders?|values)|republicans?|gop|maga|liberals?|conservatives?|progressives?|(keep|turn|flip)\s+\w+(\s+\w+)?\s+(blue|red)|(blue|red)\s+wave"""), P),
             Rule("Election terms", 1.0,
-                phrase("""elections?|vote|voting|voters?|midterms?|campaign|(house|senate)\s+(control|majority)|control\s+(of\s+)?the\s+(house|senate|congress)"""), P),
+                phrase("""elections?|votes?|voting|voters?|midterms?|campaign|(house|senate)\s+(control|majority)|control\s+(of\s+)?the\s+(house|senate|congress)"""), P),
             Rule("Voting logistics / get-out-the-vote", 1.0,
                 phrase("""ballots?|(in|leading|trailing)\s+the\s+polls|down[-\s]ballot|(close|tight|key|unsexy|competitive)\s+races?|flip\s+(the|a|this)\s+(house|senate|seat|district)|flip\s+(texas|florida|georgia|arizona|nevada|north\s+carolina|pennsylvania|michigan|wisconsin|ohio|iowa|maine|alaska|montana|kansas|nebraska|virginia|new\s+hampshire|minnesota|colorado|new\s+mexico|california|new\s+york|mississippi|south\s+carolina|missouri|indiana)|polling\s+(place|location)s?|early\s+voting|election\s+day|primary\s+election|swing\s+states?|get\s+out\s+the\s+vote|register(ed)?\s+to\s+vote"""), P),
             Rule("Political office / figure", 1.0,
                 phrase("""congress(wo)?man|congress|presidential|senate|senator|governor|speaker\s+(of\s+the\s+house)?|white\s+house|president\s+\w+|trump|biden|harris|vance|obama|pelosi|schumer|mcconnell|jeffries|aoc|desantis|newsom|pritzker|klobuchar|sherrod\s+brown|warren|sanders|kennedy|rfk|fauci|commissioner|attorney\s+general|secretary\s+of\s+(state|the\s+\w+)|mayor|state\s+(rep|representative|senator)|candidate"""), P),
+            // Campaign sites: "abdulforsenate.co", "smith4congress.com".
+            Rule("Campaign website", 1.5,
+                Regex("""\b[\w-]*(for|4)(senate|congress|governor|president|mayor|council|sheriff|judge|assembly|statehouse)\.(com|org|co|us|net)\b""", RegexOption.IGNORE_CASE), P),
+            // "Team Abdul El-Sayed: …"
+            Rule("Campaign team prefix", 1.0, Regex("""^\s*Team\s+\p{Lu}[\p{L}'’-]+(\s+\p{Lu}[\p{L}'’-]+)?\s*:"""), P),
+            // "We're looking for folks in King County to help their local Dems."
+            Rule("Volunteer recruiting", 1.5,
+                phrase("""help\s+(their|your|our|the)\s+local\s+(dems|democrats|republicans|gop|party|candidates?)|looking\s+for\s+(folks|volunteers|people)\s+(in|to|who)|volunteer\s+(shifts?|opportunit(y|ies))|phone\s*bank(ing)?|text\s*bank(ing)?|canvass(ing)?"""), P),
             Rule("Political survey / poll bait", 1.0,
                 Regex("""(?i:(official|national|presidential|patriot)\s+(survey|poll)|take\s+the\s+(survey|poll)|your\s+(response|vote)\s+is\s+(needed|required)|membership\s+(has\s+)?expired|you('ve|\s+have)\s+been\s+selected|do\s+you\s+(support|agree|stand\s+with|approve))|\b(Y\s*/\s*N|YES\s*/\s*NO)\b"""), P),
             // "We're polling WA residents. Can you answer a 4-question poll?"
@@ -242,7 +250,7 @@ class Classifier(
             // Opinion-survey solicitations: "We are conducting a study on local issues…
             // your response is voluntary and confidential… receive studies in the future?"
             Rule("Survey / opinion-poll solicitation", 2.0,
-                phrase("""conducting\s+(a|an|our)\s+(\w+\s+)?(study|survey|poll)|research[-\s]polls?|(your\s+)?(response|answers?|participation)\s+(is|are)\s+(voluntary|anonymous|confidential)|kept\s+(strictly\s+)?confidential|receive\s+(future\s+)?(studies|surveys|polls)|(studies|surveys|polls)\s+in\s+the\s+future|(local|community)\s+issues|what\s+you\s+would\s+like\s+to\s+see\s+changed"""), P),
+                phrase("""conducting\s+(a|an|our)\s+(\w+\s+)?(study|survey|poll)|\d+[-\s]?min(ute)?\s+(survey|poll)|(selected|chosen)\s+for\s+(a|an|our)\s+(\S+\s+)?(survey|poll)|your\s+(input|opinion|voice)\s+(directly\s+)?(shapes|matters|counts)|research[-\s]polls?|(your\s+)?(response|answers?|participation)\s+(is|are)\s+(voluntary|anonymous|confidential)|kept\s+(strictly\s+)?confidential|receive\s+(future\s+)?(studies|surveys|polls)|(studies|surveys|polls)\s+in\s+the\s+future|(local|community)\s+issues|what\s+you\s+would\s+like\s+to\s+see\s+changed"""), P),
 
             // Peer-to-peer texting platforms use tracking links like "site.org/l/uEel5Z".
             Rule("Campaign-style tracking link", 0.5,
@@ -252,7 +260,7 @@ class Classifier(
             // "It's Sherrod Brown." / "Amy Klobuchar here." / "Hi, I am Mia from US Speaks."
             // Weak alone (friends do this too).
             Rule("Opens with a personal introduction", 1.0,
-                Regex("""^\W*((?i:hi|hey|hello)[,!]?\s+)?(?i:it'?s|it’s|this\s+is|i'?m|i’m|i\s+am)\s+\p{Lu}[\p{L}'’-]+(\s+\p{Lu}[\p{L}'’-]+){0,2}\s*[.!,]|^\W*\p{Lu}[\p{L}'’-]+(\s+\p{Lu}[\p{L}'’-]+){1,2}\s+here\b|^\W*((?i:hi|hey|hello)[,!]?\s+)?(?i:i\s+am|i'm|i’m|my\s+name\s+is|this\s+is)\s+\p{Lu}[\p{L}'’-]+(\s+\p{Lu}[\p{L}'’-]+)?\s*,?\s+(?i:from|with)\b"""), P),
+                Regex("""^\W*((?i:hi|hey|hello)[,!]?\s+)?(?i:it'?s|it’s|this\s+is|i'?m|i’m|i\s+am)\s+\p{Lu}[\p{L}'’-]+(\s+\p{Lu}[\p{L}'’-]+){0,2}\s*[.!,]|^\W*\p{Lu}[\p{L}'’-]+(\s+\p{Lu}[\p{L}'’-]+){1,2}\s+here\b|^\W*((?i:hi|hey|hello)(\s+\p{Lu}[\p{L}'’-]+)?[,!]?\s+)?(?i:i\s+am|i'm|i’m|my\s+name\s+is|this\s+is)\s+\p{Lu}[\p{L}'’-]+(\s+\p{Lu}[\p{L}'’-]+)?\s*,?\s+(?i:from\b|with\b|w/|at\b)|^\W*((?i:hi|hey|hello)(\s+\p{Lu}[\p{L}'’-]+)?[,!]?\s+)\p{Lu}[\p{L}'’-]+\s+(?i:from|with|w/|at)\s+\p{Lu}"""), P),
 
             // "BREAKING:", "UPDATE:", "BOYCOTT:" – alarmist all-caps openers (case-sensitive),
             // or an opening line of 3+ all-caps words ("NOBEL PEACE PRIZE ANNOUNCEMENT").
@@ -269,14 +277,17 @@ class Classifier(
             // promotion also needs real marketing language.
             Rule("Brand-name prefix", 0.5, Regex("""^\s*[\p{L}\p{N}][\p{L}\p{N}&'’. -]{1,30}:\s"""), C),
             Rule("Discount or sale offer", 2.0,
-                phrase("""\d{1,2}%\s+off|\$\d+(\.\d\d)?\s+off|bogo|buy\s+one|free\s+shipping|promo\s+code|coupons?|use\s+code\s+\w+|(flash|clearance|semi-annual|black\s+friday|cyber\s+monday|end\s+of\s+season)\s+sale|on\s+sale|send\s+to\s+card"""), C),
+                phrase("""\d{1,2}%\s+off|save\s+(an\s+)?(extra\s+|up\s+to\s+)?\d{1,2}%|\$\d+(\.\d\d)?\s+off|bogo|buy\s+one|free\s+shipping|promo\s+code|coupons?|use\s+code\s+\w+|(flash|clearance|semi-annual|black\s+friday|cyber\s+monday|end\s+of\s+season)\s+sale|on\s+sale|send\s+to\s+card"""), C),
             Rule("Shopping urgency", 1.0,
-                Regex("""(?i)\b(last\s+call|shop\s+now|get\s+'?em|limited\s+time|while\s+supplies\s+last|ends\s+(tonight|today|soon|sunday|midnight)|today\s+only|don'?t\s+miss|new\s+arrivals|back\s+in\s+stock|restock(ed)?|selling\s+(out|fast)|aren'?t\s+making\s+more)"""), C),
+                Regex("""(?i)\b(last\s+call|this\s+(month|week|weekend)\s+only|shop\s+now|get\s+'?em|limited\s+time|while\s+supplies\s+last|ends\s+(tonight|today|soon|sunday|midnight)|today\s+only|don'?t\s+miss|new\s+arrivals|back\s+in\s+stock|restock(ed)?|selling\s+(out|fast)|aren'?t\s+making\s+more)"""), C),
             // SMS-marketing platforms (Postscript, Attentive, Klaviyo): used only for promotions.
             Rule("Marketing-platform link", 2.0,
                 Regex("""\b(pscrpt\.io|attn\.tv|klclick\d?\.com|kmail-lists\.com|txt\.so|i\.cvs\.com)\b""", RegexOption.IGNORE_CASE), C),
             Rule("New-product pitch", 1.0,
                 phrase("""brand\s+new|new\s+(arrivals?|drops?|collection|styles?|colou?rs?|flavors?|releases?)|just\s+(dropped|landed|arrived|launched)|(fall|spring|summer|winter|holiday)\s+(collection|lineup|line|edit)|for\s+(fall|spring|summer|winter)"""), C),
+            // "Ready to simplify the sale of 500 Elm Cir?", "we buy houses for cash".
+            Rule("Unsolicited offer to buy your home", 3.0,
+                phrase("""sale\s+of\s+\d{1,6}\s+\w+(\s+\w+)?\s+(st|street|ave|avenue|cir|circle|rd|road|dr|drive|ln|lane|ct|court|way|blvd|pl|place|ter|terrace|pkwy)|cash\s+offer|interested\s+in\s+selling|(we|i)\s+buy\s+(houses|homes)|(buy|purchase|make\s+an\s+offer\s+on)\s+your\s+(home|house|property|land)"""), C),
             Rule("Asks you to save a contact card", 1.0,
                 phrase("""save\s+(this|our)\s+(new\s+)?(contact|number)|contact\s+card"""), C),
 
@@ -301,7 +312,13 @@ class Classifier(
             Rule("Suspicious link domain", 1.5,
                 Regex("""\b[\w-]+\.(top|xyz|icu|vip|click|cfd|sbs|cyou|buzz|rest)(/|\b)""", RegexOption.IGNORE_CASE), X),
             Rule("Wrong-number opener", 1.0,
-                Regex("""^\W*(?i:hi|hello|hey)[,!]?\s+(?i:is\s+this|are\s+you)\s+\p{Lu}"""), X),
+                Regex("""^\W*(?i:hi|hello|hey)[,!]?\s+(?i:is\s+this|are\s+you)\s+\p{Lu}|^\W*(?i:hi|hello|hey)\s+\p{Lu}\p{Ll}+[.!]"""), X),
+            // Scam conversation starters sent to "wrong numbers": "Diane are u getting this",
+            // "I just got back from a trip… could you drop my dog off?"
+            Rule("Are-you-getting-this probe", 3.0,
+                phrase("""(are|r)\s+(u|you)\s+(still\s+)?(getting|receiving)\s+(this|these|my\s+(texts|messages))"""), X),
+            Rule("Wrong-number scam story", 2.0,
+                phrase("""just\s+got\s+back\s+from|back\s+from\s+(a|my)\s+trip|could\s+(you|u)\s+(drop|pick\s+up|feed|walk|water)\s+(off\s+)?(my|the)|drop\s+(my|the)\s+\w+\s+off|long\s+time\s+no\s+(see|talk)|did\s+(you|u)\s+(get|receive)\s+my\s+(last\s+)?(message|text)"""), X),
 
             // ------------------------------------------------------------- shared
             Rule("Link shortener", 0.5,
