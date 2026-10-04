@@ -227,35 +227,90 @@ object SmsInbox {
         )?.use { if (it.moveToFirst()) it.getString(0) else null } ?: ""
 
     /**
-     * Deletes the given messages in batches (one provider call per 500 rather than
-     * per message). Callers verify by re-reading the inbox.
+     * Deletes the given messages in batches (one provider call per batch rather
+     * than per message). Callers verify with [stillPresent].
      */
     fun delete(context: Context, ids: Collection<Long>, onProgress: (String) -> Unit = {}) {
         val sms = ids.filter { it > 0 }
         val mms = ids.filter { it < 0 }.map { -it }
         var done = 0
-        // Small batches: the provider deletes each picture message's parts and
-        // files one at a time, so a big MMS batch can run for minutes silently.
         for ((uri, rows, size, noun) in listOf(
             Batch(Telephony.Sms.CONTENT_URI, sms, 200, "texts"),
-            Batch(Telephony.Mms.CONTENT_URI, mms, 20, "picture messages"),
+            Batch(Telephony.Mms.CONTENT_URI, mms, 25, "picture messages"),
         )) {
             for (chunk in rows.chunked(size)) {
                 onProgress("Deleting $noun… $done of ${ids.size}")
+                val relabeled = if (uri == Telephony.Mms.CONTENT_URI) relabelAttachments(context, chunk) else emptyMap()
                 try {
-                    context.contentResolver.delete(
-                        uri,
-                        "_id IN (${chunk.joinToString(",") { "?" }})",
-                        chunk.map { it.toString() }.toTypedArray(),
-                    )
+                    context.contentResolver.delete(uri, "_id IN (${placeholders(chunk)})", args(chunk))
                 } catch (e: Exception) {
                     Log.w("MessageKiller", "Batch delete failed", e)
                 }
+                if (relabeled.isNotEmpty()) restoreLabels(context, chunk, relabeled)
                 done += chunk.size
             }
         }
         onProgress("Deleting… $done of ${ids.size}")
     }
+
+    private const val TEXT_TYPES = "ct NOT IN ('text/plain', 'application/smil')"
+
+    /**
+     * Android's MMS database has a trigger that, for every deleted attachment
+     * part, recomputes "has attachment" for every conversation by joining all
+     * picture messages with all parts: seconds per attachment on a big inbox.
+     * It skips text and SMIL parts, so relabel these messages' attachments as
+     * SMIL first (one indexed update per message); the delete still removes the
+     * parts and their files. Returns part id → original content type.
+     */
+    private fun relabelAttachments(context: Context, mmsRowIds: List<Long>): Map<Long, String> {
+        val original = HashMap<Long, String>()
+        val byMessage = HashMap<Long, Int>()
+        try {
+            context.contentResolver.query(
+                Uri.parse("content://mms/part"), arrayOf(Telephony.Mms.Part._ID, Telephony.Mms.Part.MSG_ID, "ct"),
+                "${Telephony.Mms.Part.MSG_ID} IN (${placeholders(mmsRowIds)}) AND $TEXT_TYPES", args(mmsRowIds), null,
+            )?.use { c ->
+                while (c.moveToNext()) {
+                    original[c.getLong(0)] = c.getString(2) ?: continue
+                    byMessage.merge(c.getLong(1), 1, Int::plus)
+                }
+            }
+            val smil = ContentValues().apply { put("ct", "application/smil") }
+            for (mid in byMessage.keys) {
+                context.contentResolver.update(Uri.parse("content://mms/$mid/part"), smil, TEXT_TYPES, null)
+            }
+        } catch (e: Exception) {
+            Log.w("MessageKiller", "Could not relabel MMS attachments; deleting the slow way", e)
+        }
+        return original
+    }
+
+    /** Puts back attachment types for any message the delete didn't remove. */
+    private fun restoreLabels(context: Context, mmsRowIds: List<Long>, original: Map<Long, String>) {
+        val survivors = stillPresent(context, mmsRowIds.map(::mmsId))
+        if (survivors.isEmpty()) return
+        val survivingRows = survivors.map { -it }.toSet()
+        try {
+            context.contentResolver.query(
+                Uri.parse("content://mms/part"), arrayOf(Telephony.Mms.Part._ID, Telephony.Mms.Part.MSG_ID),
+                "${Telephony.Mms.Part.MSG_ID} IN (${placeholders(survivingRows)})", args(survivingRows), null,
+            )?.use { c ->
+                while (c.moveToNext()) {
+                    val type = original[c.getLong(0)] ?: continue
+                    context.contentResolver.update(
+                        Uri.parse("content://mms/part/${c.getLong(0)}"),
+                        ContentValues().apply { put("ct", type) }, null, null,
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("MessageKiller", "Could not restore MMS attachment types", e)
+        }
+    }
+
+    private fun placeholders(ids: Collection<Long>) = ids.joinToString(",") { "?" }
+    private fun args(ids: Collection<Long>) = ids.map { it.toString() }.toTypedArray()
 
     private data class Batch(val uri: Uri, val rows: List<Long>, val size: Int, val noun: String)
 
@@ -267,11 +322,7 @@ object SmsInbox {
             Triple(Telephony.Mms.CONTENT_URI, ids.filter { it < 0 }.map { -it }, -1L),
         )) {
             for (chunk in rows.chunked(500)) {
-                context.contentResolver.query(
-                    uri, arrayOf("_id"),
-                    "_id IN (${chunk.joinToString(",") { "?" }})",
-                    chunk.map { it.toString() }.toTypedArray(), null,
-                )?.use { c -> while (c.moveToNext()) present += sign * c.getLong(0) }
+                context.contentResolver.query(uri, arrayOf("_id"), "_id IN (${placeholders(chunk)})", args(chunk), null)?.use { c -> while (c.moveToNext()) present += sign * c.getLong(0) }
             }
         }
         return present
