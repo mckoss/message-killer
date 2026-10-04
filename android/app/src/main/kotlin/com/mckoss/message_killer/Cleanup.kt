@@ -148,11 +148,76 @@ object Cleanup {
         val tainted = store.taintedSenders()
         val contacts = ContactsChecker(context)
         return store.list().filter { e ->
-            e.status == SpamStore.STATUS_DELETED && !e.confirmed && (
+            e.status == SpamStore.STATUS_DELETED && !e.confirmed &&
+                e.category != SpamStore.CATEGORY_PRUNED && (
                 settings.isAllowed(e.sender) || contacts.isContact(e.sender) ||
                     !byContent.withTaint(byContent.classify(e.body, e.sender), e.sender, tainted).isSpam
                 )
         }
+    }
+
+    const val PRUNE_AGE_DAYS = 90L
+
+    /** One sender's prunable texts, for the preview. */
+    data class PruneGroup(val sender: String, val count: Int, val oldest: Long, val newest: Long, val sample: String)
+
+    /**
+     * Received texts older than [PRUNE_AGE_DAYS] in conversations you never sent
+     * anything to. Never contacts, allowed senders, or group chats (unknown sender).
+     */
+    private fun pruneCandidates(context: Context): List<SmsInbox.Message> {
+        val settings = AppSettings(context)
+        val contacts = ContactsChecker(context)
+        val cutoff = System.currentTimeMillis() - java.util.concurrent.TimeUnit.DAYS.toMillis(PRUNE_AGE_DAYS)
+        progress = "Finding conversations you've replied to…"
+        val replied = SmsInbox.threadsYouReplied(context)
+        val all = SmsInbox.readInbox(context, includePictureOnly = true) { progress = it }
+        progress = "Checking ${all.size} messages…"
+        return all.filter {
+            it.date < cutoff && it.threadId !in replied && it.address.isNotEmpty() &&
+                !settings.isAllowed(it.address) && !contacts.isContact(it.address)
+        }.also { progress = "" }
+    }
+
+    @Synchronized
+    fun prunePreview(context: Context): List<PruneGroup> =
+        pruneCandidates(context)
+            .groupBy { Classifier.normalizeSender(it.address) }
+            .map { (_, msgs) ->
+                PruneGroup(
+                    sender = msgs.first().address,
+                    count = msgs.size,
+                    oldest = msgs.minOf { it.date },
+                    newest = msgs.maxOf { it.date },
+                    sample = msgs.maxBy { it.date }.body,
+                )
+            }
+            .sortedByDescending { it.count }
+
+    /**
+     * Copies the prunable texts from [senders] into the Spam folder ("Old
+     * messages") and deletes them from the inbox. Requires the default SMS role.
+     * Returns (deleted, failed).
+     */
+    @Synchronized
+    fun prune(context: Context, senders: Collection<String>): Pair<Int, Int> {
+        if (!isDefaultSmsApp(context)) return 0 to 0
+        val wanted = senders.map(Classifier::normalizeSender).toSet()
+        val store = SpamStore.get(context)
+        val messages = pruneCandidates(context).filter { Classifier.normalizeSender(it.address) in wanted }
+        val ids = store.inTransaction {
+            messages.mapIndexed { i, m ->
+                if (i % 250 == 0) progress = "Saving copies… ${i + 1} of ${messages.size}"
+                store.filePruned(m)
+            }
+        }
+        SmsInbox.delete(context, ids) { progress = it }
+        progress = "Checking that they're gone…"
+        val stillThere = SmsInbox.readInbox(context, includePictureOnly = true).map { it.id }.toSet()
+        val gone = ids.filter { it !in stillThere }
+        store.markDeleted(gone)
+        progress = ""
+        return gone.size to (ids.size - gone.size)
     }
 
     /**
@@ -225,7 +290,9 @@ object Cleanup {
         SmsInbox.delete(context, pending) { progress = it }
         // Verify against the inbox rather than trusting delete() counts.
         progress = "Checking that they're gone…"
-        val stillThere = SmsInbox.readInbox(context) { progress = "Checking that they're gone… $it" }.map { it.id }.toSet()
+        val stillThere = SmsInbox.readInbox(context, includePictureOnly = true) {
+            progress = "Checking that they're gone… $it"
+        }.map { it.id }.toSet()
         val gone = pending.filter { it !in stillThere }
         store.markDeleted(gone)
         progress = ""

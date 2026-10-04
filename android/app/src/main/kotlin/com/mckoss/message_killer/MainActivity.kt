@@ -81,6 +81,18 @@ class MainActivity : FlutterActivity() {
                 mapOf("deleted" to deleted, "failed" to failed)
             }
             "listSpam" -> background(result) { store.list().map { it.toMap() } }
+            "prunePreview" -> background(result) {
+                Cleanup.prunePreview(this).map {
+                    mapOf(
+                        "sender" to it.sender, "count" to it.count, "oldest" to it.oldest,
+                        "newest" to it.newest, "sample" to it.sample,
+                    )
+                }
+            }
+            "prune" -> background(result) {
+                val (deleted, failed) = Cleanup.prune(this, call.argument<List<String>>("senders") ?: emptyList())
+                mapOf("deleted" to deleted, "failed" to failed)
+            }
             "listRestorable" -> background(result) { Cleanup.restorable(this).map { it.toMap() } }
             // Separate from getStatus: re-checks every deleted entry, so the home
             // screen shows first and this count fills in after.

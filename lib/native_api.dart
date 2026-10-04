@@ -72,7 +72,13 @@ enum SpamStatus { silenced, pendingDelete, deleted }
 enum SpamCategory {
   political('political', 'Political'),
   commercial('commercial', 'Commercial'),
-  phishing('phishing', 'Phishing / scam');
+  phishing('phishing', 'Phishing / scam'),
+
+  /// Not spam: old texts deleted by "Prune old messages".
+  pruned('pruned', 'Old messages');
+
+  /// The kinds of spam the filter can be switched on/off for.
+  static const filterable = [political, commercial, phishing];
 
   const SpamCategory(this.key, this.label);
 
@@ -143,7 +149,7 @@ class FilterSettings {
     required this.dailyCleanup,
     required this.customKeywords,
     required this.allowedSenders,
-    this.categories = const {...SpamCategory.values},
+    this.categories = const {...SpamCategory.filterable},
   });
 
   final bool liveFilter;
@@ -160,8 +166,33 @@ class FilterSettings {
     customKeywords: ((m['customKeywords'] as List?) ?? const []).cast<String>(),
     allowedSenders: ((m['allowedSenders'] as List?) ?? const []).cast<String>(),
     categories: m['categories'] == null
-        ? {...SpamCategory.values}
+        ? {...SpamCategory.filterable}
         : {for (final k in m['categories'] as List) ?SpamCategory.fromKey(k)},
+  );
+}
+
+/// One sender's old texts that "Prune old messages" would delete.
+class PruneGroup {
+  const PruneGroup({
+    required this.sender,
+    required this.count,
+    required this.oldest,
+    required this.newest,
+    required this.sample,
+  });
+
+  final String sender;
+  final int count;
+  final DateTime oldest;
+  final DateTime newest;
+  final String sample;
+
+  factory PruneGroup.fromMap(Map<Object?, Object?> m) => PruneGroup(
+    sender: m['sender'] as String? ?? '',
+    count: (m['count'] as num?)?.toInt() ?? 0,
+    oldest: DateTime.fromMillisecondsSinceEpoch((m['oldest'] as num).toInt()),
+    newest: DateTime.fromMillisecondsSinceEpoch((m['newest'] as num).toInt()),
+    sample: m['sample'] as String? ?? '',
   );
 }
 
@@ -291,6 +322,13 @@ abstract class NativeApi {
     Set<SpamCategory>? categories,
   });
   Future<ClassifyResult> classify(String text, {String? sender});
+
+  /// Old texts (90+ days) in conversations you never replied to, by sender.
+  Future<List<PruneGroup>> prunePreview();
+
+  /// Copies those texts from [senders] to the Spam folder and deletes them
+  /// (needs the default SMS role).
+  Future<DeleteResult> prune(List<String> senders);
 
   /// Deleted texts that no longer count as spam under the current rules.
   Future<List<SpamEntry>> listRestorable();
@@ -439,6 +477,24 @@ class MethodChannelNativeApi implements NativeApi {
     return list
         .map((e) => SpamEntry.fromMap(e! as Map<Object?, Object?>))
         .toList();
+  }
+
+  @override
+  Future<List<PruneGroup>> prunePreview() async {
+    final list =
+        await _channel.invokeMethod<List<Object?>>('prunePreview') ?? const [];
+    return list
+        .map((e) => PruneGroup.fromMap(e! as Map<Object?, Object?>))
+        .toList();
+  }
+
+  @override
+  Future<DeleteResult> prune(List<String> senders) async {
+    final m = await _map('prune', {'senders': senders});
+    return DeleteResult(
+      deleted: (m['deleted'] as num?)?.toInt() ?? 0,
+      failed: (m['failed'] as num?)?.toInt() ?? 0,
+    );
   }
 
   @override

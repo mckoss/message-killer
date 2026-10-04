@@ -25,6 +25,10 @@ RCS chat keeps working.
   else from that number is filtered too (except verification codes, bank/card
   alerts, and pharmacy/order/appointment notices). The list is rebuilt on
   every full rescan, so a wrongly flagged sender un-flags itself.
+- **Prune old messages:** deletes texts older than 90 days from
+  conversations you never replied to (never contacts, allowed senders, or
+  group chats), after a per-sender preview. Copies go to the Spam folder as
+  "Old messages" for 90 days.
 - **Restore:** deleted texts that no longer count as spam under the current
   rules are listed on the home screen and can be put back in your inbox; any
   deleted text can also be restored from its Spam folder entry. "Allow

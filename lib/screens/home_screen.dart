@@ -4,6 +4,7 @@ import '../format.dart';
 import '../native_api.dart';
 import 'cleanup_flow.dart';
 import 'loading_view.dart';
+import 'prune_screen.dart';
 import 'restore_screen.dart';
 import 'settings_screen.dart';
 import 'spam_folder_screen.dart';
@@ -106,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   _liveFilterCard(status),
                   _spamFolderCard(status),
                   _cleanupCard(status),
+                  _pruneCard(),
                   if (status.version.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 16),
@@ -118,6 +120,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _pruneCard() {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.auto_delete_outlined),
+        title: const Text('Prune old messages'),
+        subtitle: const Text(
+          'Texts older than 90 days from conversations you never replied to',
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _open(PruneScreen(api: api)),
+      ),
     );
   }
 

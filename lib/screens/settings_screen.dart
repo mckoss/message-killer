@@ -66,7 +66,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   'Changing these re-checks all your messages on the next scan.',
                   style: theme.textTheme.bodySmall,
                 ),
-                for (final c in SpamCategory.values)
+                for (final c in SpamCategory.filterable)
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: Text(c.label),
@@ -76,6 +76,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       SpamCategory.commercial => 'Sales, coupons and promotions (judged per message, never by sender)',
                       SpamCategory.phishing =>
                         'Fake toll, delivery, account and prize texts',
+                      SpamCategory.pruned => '',
                     }),
                     value: settings.categories.contains(c),
                     onChanged: (on) async {

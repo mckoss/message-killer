@@ -399,7 +399,12 @@ void main() {
       find.text('2 deleted texts no longer look like spam'),
       findsOneWidget,
     );
+    await scrollTo(tester, find.text('Message Killer 0.16.0 (build 1)'));
     expect(find.text('Message Killer 0.16.0 (build 1)'), findsOneWidget);
+    await scrollTo(
+      tester,
+      find.text('2 deleted texts no longer look like spam'),
+    );
     await tester.tap(find.text('2 deleted texts no longer look like spam'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Restore 2'));
@@ -463,5 +468,44 @@ void main() {
     expect(api.calls, contains('confirm:9'));
     expect(api.calls, isNot(contains('requestDefaultSmsRole')));
     expect(api.restorable, isEmpty);
+  });
+
+  testWidgets('prune: preview by sender, deselect one, delete the rest', (
+    tester,
+  ) async {
+    final api = FakeNativeApi()
+      ..pruneGroups = [
+        PruneGroup(
+          sender: '90999',
+          count: 120,
+          oldest: DateTime(2019, 1, 1),
+          newest: DateTime(2026, 5, 1),
+          sample: 'Red Cross: give blood',
+        ),
+        PruneGroup(
+          sender: '692632',
+          count: 40,
+          oldest: DateTime(2020, 1, 1),
+          newest: DateTime(2026, 6, 1),
+          sample: 'BofA: Credit card charge',
+        ),
+      ];
+    await tester.pumpWidget(MessageKillerApp(api: api));
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.text('Prune old messages'));
+    await tester.tap(find.text('Prune old messages'));
+    await pumpABit(tester);
+
+    expect(find.textContaining('160 texts from 2 senders'), findsOneWidget);
+    await tester.tap(find.text('692632 · 40 texts'));
+    await pumpABit(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete 120 old texts'));
+    await pumpABit(tester);
+
+    expect(
+      api.calls,
+      containsAllInOrder(['requestDefaultSmsRole', 'prune:90999']),
+    );
+    expect(find.text('Deleted 120 old texts'), findsOneWidget);
   });
 }

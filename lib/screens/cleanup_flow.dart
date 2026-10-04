@@ -170,6 +170,48 @@ Future<int> runRestore(
   return restored;
 }
 
+/// Deletes old texts from the chosen senders: briefly become the default SMS
+/// app, delete (copies go to the Spam folder), then switch back.
+/// Returns how many were deleted.
+Future<int> runPrune(
+  BuildContext context,
+  NativeApi api,
+  List<String> senders,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final navigator = Navigator.of(context);
+  if (senders.isEmpty) return 0;
+  if (!await _becomeDefault(context, api)) {
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Nothing deleted: Message Killer needs to be the default SMS app briefly to delete texts.',
+        ),
+      ),
+    );
+    return 0;
+  }
+  if (!context.mounted) return 0;
+  final result = await _withProgress(
+    context,
+    api,
+    'Deleting old texts',
+    () => api.prune(senders),
+  );
+  await navigator.push(
+    MaterialPageRoute<void>(
+      fullscreenDialog: true,
+      builder: (_) => SwitchBackScreen(
+        api: api,
+        headline:
+            'Deleted ${plural(result.deleted, 'old text')}'
+            '${result.failed > 0 ? ' (${result.failed} couldn\'t be deleted)' : ''}',
+      ),
+    ),
+  );
+  return result.deleted;
+}
+
 /// Fallback when the system prompt is refused or never appears: send the user to
 /// Default apps to pick Message Killer by hand, then check when they come back.
 Future<bool> _switchManually(BuildContext context, NativeApi api) async {

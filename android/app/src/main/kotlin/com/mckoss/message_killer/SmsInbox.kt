@@ -15,6 +15,7 @@ import android.util.Log
  */
 object SmsInbox {
     private const val PDU_FROM = 137
+    const val PICTURE_ONLY = "[Picture message]"
 
     data class Message(
         val id: Long,
@@ -37,11 +38,28 @@ object SmsInbox {
         context: Context,
         sinceMillis: Long = 0,
         threadIds: Collection<Long>? = null,
+        /** Also return picture messages with no text (body "[Picture message]"). */
+        includePictureOnly: Boolean = false,
         onProgress: (String) -> Unit = {},
     ): List<Message> {
         if (threadIds != null && threadIds.isEmpty()) return emptyList()
         val sms = readSms(context, sinceMillis, threadIds, onProgress)
-        return (sms + readMms(context, sinceMillis, threadIds, onProgress)).sortedByDescending { it.date }
+        val mms = readMms(context, sinceMillis, threadIds, includePictureOnly, onProgress)
+        return (sms + mms).sortedByDescending { it.date }
+    }
+
+    /** Conversations in which you've sent (or tried to send) at least one message. */
+    fun threadsYouReplied(context: Context): Set<Long> {
+        val threads = HashSet<Long>()
+        context.contentResolver.query(
+            Telephony.Sms.CONTENT_URI, arrayOf(Telephony.Sms.THREAD_ID),
+            "${Telephony.Sms.TYPE} IN (2, 4, 5, 6)", null, null, // sent, outbox, failed, queued
+        )?.use { c -> while (c.moveToNext()) threads += c.getLong(0) }
+        context.contentResolver.query(
+            Telephony.Mms.CONTENT_URI, arrayOf(Telephony.Mms.THREAD_ID),
+            "${Telephony.Mms.MESSAGE_BOX} IN (2, 4)", null, null, // sent, outbox
+        )?.use { c -> while (c.moveToNext()) threads += c.getLong(0) }
+        return threads
     }
 
     /** SQL selection for an optional date floor and conversation filter. */
@@ -90,7 +108,8 @@ object SmsInbox {
      * text lives in text/plain parts and the sender in the addr table (type 137 = from).
      */
     private fun readMms(
-        context: Context, since: Long, threadIds: Collection<Long>?, onProgress: (String) -> Unit,
+        context: Context, since: Long, threadIds: Collection<Long>?, includePictureOnly: Boolean,
+        onProgress: (String) -> Unit,
     ): List<Message> {
         val resolver = context.contentResolver
         // Matching MMS rows first (MMS dates are in seconds).
@@ -139,7 +158,8 @@ object SmsInbox {
         onProgress("Matching picture messages to senders…")
         val threadSenders = threadSenders(context)
         return rows.mapNotNull { row ->
-            val body = texts[row.id]?.toString()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val body = texts[row.id]?.toString()?.takeIf { it.isNotBlank() }
+                ?: (if (includePictureOnly) PICTURE_ONLY else return@mapNotNull null)
             val sender = if (threadSenders != null) {
                 // Conversations with more than one participant (real group chats, but
                 // also 1:1 MMS threads that list your own number too) get "" here; the

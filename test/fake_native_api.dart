@@ -31,7 +31,7 @@ class FakeNativeApi implements NativeApi {
   bool dailyCleanup = false;
   List<String> customKeywords = [];
   List<String> allowedSenders = [];
-  Set<SpamCategory> categories = {...SpamCategory.values};
+  Set<SpamCategory> categories = {...SpamCategory.filterable};
   List<FlaggedSender> flagged = [];
   List<SpamEntry> restorable = [];
   List<SpamEntry> spam;
@@ -201,6 +201,22 @@ class FakeNativeApi implements NativeApi {
 
   @override
   Future<List<SpamEntry>> listRestorable() async => List.of(restorable);
+
+  List<PruneGroup> pruneGroups = [];
+
+  @override
+  Future<List<PruneGroup>> prunePreview() async => List.of(pruneGroups);
+
+  @override
+  Future<DeleteResult> prune(List<String> senders) async {
+    calls.add('prune:${senders.join(',')}');
+    if (!isDefaultSmsApp) return const DeleteResult(deleted: 0, failed: 0);
+    final n = pruneGroups
+        .where((g) => senders.contains(g.sender))
+        .fold(0, (a, g) => a + g.count);
+    pruneGroups.removeWhere((g) => senders.contains(g.sender));
+    return DeleteResult(deleted: n, failed: 0);
+  }
 
   @override
   Future<int> countRestorable() async => restorable.length;

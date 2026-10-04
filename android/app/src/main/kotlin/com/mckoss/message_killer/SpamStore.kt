@@ -294,9 +294,27 @@ class SpamStore private constructor(context: Context) :
         )
     }
 
+    /**
+     * Files an old message from a conversation you never replied to, about to be
+     * pruned. Returns its sms id (also if it was already in the Spam folder).
+     */
+    @Synchronized
+    fun filePruned(sms: SmsInbox.Message): Long {
+        val exists = writableDatabase.rawQuery("SELECT id FROM spam WHERE sms_id = ?", arrayOf(sms.id.toString()))
+            .use { it.moveToFirst() }
+        if (!exists) {
+            insert(
+                SOURCE_PRUNE, STATUS_PENDING, sms.address, sms.body, sms.date,
+                Classifier.Result(0.0, listOf(PRUNE_REASON), null), sms.id, category = CATEGORY_PRUNED,
+            )
+        }
+        return sms.id
+    }
+
     private fun insert(
         source: String, status: String, sender: String, body: String,
         messageTime: Long, result: Classifier.Result, smsId: Long?,
+        category: String = (result.category ?: Classifier.Category.POLITICAL).key,
     ) {
         writableDatabase.insert("spam", null, ContentValues().apply {
             put("source", source)
@@ -308,7 +326,7 @@ class SpamStore private constructor(context: Context) :
             put("score", result.score)
             put("reasons", result.reasons.joinToString("\n"))
             if (smsId != null) put("sms_id", smsId)
-            put("category", (result.category ?: Classifier.Category.POLITICAL).key)
+            put("category", category)
         })
         // Only political senders are flagged wholesale; a store that sent one
         // coupon may also send prescription alerts.
@@ -350,6 +368,9 @@ class SpamStore private constructor(context: Context) :
         const val STATUS_SILENCED = "silenced"
         const val STATUS_PENDING = "pending_delete"
         const val STATUS_DELETED = "deleted"
+        const val SOURCE_PRUNE = "prune"
+        const val CATEGORY_PRUNED = "pruned"
+        const val PRUNE_REASON = "Older than 90 days, in a conversation you never replied to"
         private const val MATCH_WINDOW_MS = 15 * 60 * 1000L
 
         @Volatile private var instance: SpamStore? = null
