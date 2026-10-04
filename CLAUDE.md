@@ -29,6 +29,17 @@ are native so they run without the Flutter UI. See `plan.md` for the design.
   (strip names/numbers/link tokens). Re-run exported corpora locally before
   shipping rule changes; **never commit users' exported messages**.
 
+## Performance
+
+- Inboxes can hold 30k+ messages: no O(n²) work. Never query or scan a
+  table per message; use indexed lookups, `IN (…)` batches, and sets/maps.
+- Cache repeated work: the classifier memoizes rule matches per body,
+  `ContactsChecker.get` and `AppSettings` cache contacts / the allow list,
+  and `Cleanup` caches results keyed by `SpamStore.version`, the rules
+  fingerprint and `ContactsChecker.generation`.
+- Long operations update `Cleanup.progress` often (small batches), and
+  Flutter lists of messages use lazy builders.
+
 ## Checks before pushing
 
 ```bash
