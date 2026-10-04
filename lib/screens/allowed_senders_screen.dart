@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../native_api.dart';
+import 'loading_view.dart';
 
 /// View, add, and remove senders that are never filtered.
 class AllowedSendersScreen extends StatefulWidget {
@@ -60,7 +61,7 @@ class _AllowedSendersScreenState extends State<AllowedSendersScreen> {
         label: const Text('Add'),
       ),
       body: senders == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const LoadingView('Loading allowed senders…')
           : ListView(
               padding: const EdgeInsets.only(bottom: 88),
               children: [

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../format.dart';
 import '../native_api.dart';
+import 'loading_view.dart';
 import 'allow_sender.dart';
 import 'cleanup_flow.dart';
 import 'export_action.dart';
@@ -59,7 +60,7 @@ class _SpamFolderScreenState extends State<SpamFolderScreen> {
         actions: [ExportSpamButton(api: widget.api)],
       ),
       body: entries == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const LoadingView('Loading the Spam folder…')
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView.separated(

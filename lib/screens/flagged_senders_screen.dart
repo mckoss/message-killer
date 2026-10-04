@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../format.dart';
 import '../native_api.dart';
+import 'loading_view.dart';
 import 'export_action.dart';
 
 /// Senders flagged for political texts: everything they send is filtered.
@@ -71,7 +72,7 @@ class _FlaggedSendersScreenState extends State<FlaggedSendersScreen> {
         ],
       ),
       body: senders == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const LoadingView('Loading flagged senders…')
           : ListView.builder(
               itemCount: senders.length + 1,
               itemBuilder: (context, index) {

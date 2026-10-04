@@ -82,6 +82,9 @@ class MainActivity : FlutterActivity() {
             }
             "listSpam" -> background(result) { store.list().map { it.toMap() } }
             "listRestorable" -> background(result) { Cleanup.restorable(this).map { it.toMap() } }
+            // Separate from getStatus: re-checks every deleted entry, so the home
+            // screen shows first and this count fills in after.
+            "countRestorable" -> background(result) { Cleanup.restorable(this).size }
             "confirmSpam" -> background(result) {
                 store.confirm((call.argument<List<Number>>("ids") ?: emptyList()).map { it.toLong() })
                 null
@@ -173,7 +176,7 @@ class MainActivity : FlutterActivity() {
             "previousDefaultSmsApp" to appLabel(previous),
             "liveFilter" to settings.liveFilter,
             "dailyCleanup" to settings.dailyCleanup,
-            "counts" to store.counts() + ("restorable" to Cleanup.restorable(this).size),
+            "counts" to store.counts(),
             "version" to versionInfo(),
             "retentionDays" to SpamStore.RETENTION_DAYS,
         )

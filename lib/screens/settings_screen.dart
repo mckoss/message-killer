@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../native_api.dart';
+import 'loading_view.dart';
 import 'allowed_senders_screen.dart';
 import 'cleanup_flow.dart';
 import 'flagged_senders_screen.dart';
@@ -55,7 +56,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Filter settings')),
       body: settings == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const LoadingView('Loading settings…')
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../format.dart';
 import '../native_api.dart';
+import 'loading_view.dart';
 import 'allow_sender.dart';
 import 'export_action.dart';
 import 'spam_folder_screen.dart';
@@ -62,7 +63,7 @@ class _CleanupPreviewScreenState extends State<CleanupPreviewScreen> {
         actions: [ExportSpamButton(api: widget.api, pendingOnly: true)],
       ),
       body: pending == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const LoadingView('Loading texts to review…')
           : ListView.separated(
               itemCount: pending.length + 1,
               separatorBuilder: (_, _) => const Divider(height: 1),

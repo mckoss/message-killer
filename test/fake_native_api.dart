@@ -203,6 +203,9 @@ class FakeNativeApi implements NativeApi {
   Future<List<SpamEntry>> listRestorable() async => List.of(restorable);
 
   @override
+  Future<int> countRestorable() async => restorable.length;
+
+  @override
   Future<void> confirmSpam(List<int> ids) async {
     calls.add('confirm:${ids.join(',')}');
     restorable.removeWhere((e) => ids.contains(e.id));

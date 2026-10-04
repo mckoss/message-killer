@@ -295,6 +295,9 @@ abstract class NativeApi {
   /// Deleted texts that no longer count as spam under the current rules.
   Future<List<SpamEntry>> listRestorable();
 
+  /// How many of those there are (slow: re-checks every deleted entry).
+  Future<int> countRestorable();
+
   /// Marks entries as really spam: they're never offered for restore again.
   Future<void> confirmSpam(List<int> ids);
 
@@ -437,6 +440,10 @@ class MethodChannelNativeApi implements NativeApi {
         .map((e) => SpamEntry.fromMap(e! as Map<Object?, Object?>))
         .toList();
   }
+
+  @override
+  Future<int> countRestorable() async =>
+      await _channel.invokeMethod<int>('countRestorable') ?? 0;
 
   @override
   Future<void> confirmSpam(List<int> ids) =>

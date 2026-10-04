@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../format.dart';
 import '../native_api.dart';
 import 'cleanup_flow.dart';
+import 'loading_view.dart';
 import 'restore_screen.dart';
 import 'settings_screen.dart';
 import 'spam_folder_screen.dart';
@@ -18,6 +19,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   AppStatus? _status;
+
+  /// Deleted texts that no longer look like spam; loaded after the status
+  /// because it re-checks every Spam folder entry.
+  int _restorable = 0;
   bool _busy = false;
 
   NativeApi get api => widget.api;
@@ -44,6 +49,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final status = await api.getStatus();
     if (!mounted) return;
     setState(() => _status = status);
+    api.countRestorable().then((n) {
+      if (mounted) setState(() => _restorable = n);
+    });
     if (checkLaunchAction &&
         await api.takeLaunchAction() == 'cleanup' &&
         mounted) {
@@ -83,14 +91,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       ),
       body: status == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const LoadingView('Loading your Spam folder…')
           : RefreshIndicator(
               onRefresh: _refresh,
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
                   if (status.isDefaultSmsApp) _stillDefaultCard(status),
-                  if (status.restorable > 0) _restoreCard(status),
+                  if (_restorable > 0) _restoreCard(),
                   if (!status.smsPermission ||
                       !status.notificationAccess ||
                       !status.contactsPermission)
@@ -113,13 +121,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _restoreCard(AppStatus status) {
+  Widget _restoreCard() {
     return Card(
       child: ListTile(
         leading: const Icon(Icons.restore),
         title: Text(
-          '${plural(status.restorable, 'deleted text')} no longer '
-          '${status.restorable == 1 ? 'looks' : 'look'} like spam',
+          '${plural(_restorable, 'deleted text')} no longer '
+          '${_restorable == 1 ? 'looks' : 'look'} like spam',
         ),
         subtitle: const Text('Review and put them back in your inbox'),
         trailing: const Icon(Icons.chevron_right),

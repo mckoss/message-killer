@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../format.dart';
 import '../native_api.dart';
+import 'loading_view.dart';
 import 'cleanup_flow.dart';
 
 /// Deleted texts that no longer count as spam (e.g. bank alerts removed by an
@@ -152,7 +153,7 @@ class _RestoreScreenState extends State<RestoreScreen> {
         ],
       ),
       body: entries == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const LoadingView('Re-checking deleted texts…')
           : ListView(
               children: [
                 Padding(
