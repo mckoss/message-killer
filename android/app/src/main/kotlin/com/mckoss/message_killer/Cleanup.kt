@@ -213,7 +213,7 @@ object Cleanup {
         }
         SmsInbox.delete(context, ids) { progress = it }
         progress = "Checking that they're gone…"
-        val stillThere = SmsInbox.readInbox(context, includePictureOnly = true).map { it.id }.toSet()
+        val stillThere = SmsInbox.stillPresent(context, ids)
         val gone = ids.filter { it !in stillThere }
         store.markDeleted(gone)
         progress = ""
@@ -290,9 +290,7 @@ object Cleanup {
         SmsInbox.delete(context, pending) { progress = it }
         // Verify against the inbox rather than trusting delete() counts.
         progress = "Checking that they're gone…"
-        val stillThere = SmsInbox.readInbox(context, includePictureOnly = true) {
-            progress = "Checking that they're gone… $it"
-        }.map { it.id }.toSet()
+        val stillThere = SmsInbox.stillPresent(context, pending)
         val gone = pending.filter { it !in stillThere }
         store.markDeleted(gone)
         progress = ""

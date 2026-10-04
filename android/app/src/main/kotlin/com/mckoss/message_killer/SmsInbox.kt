@@ -226,9 +226,14 @@ object SmsInbox {
         val sms = ids.filter { it > 0 }
         val mms = ids.filter { it < 0 }.map { -it }
         var done = 0
-        for ((uri, rows) in listOf(Telephony.Sms.CONTENT_URI to sms, Telephony.Mms.CONTENT_URI to mms)) {
-            for (chunk in rows.chunked(500)) {
-                onProgress("Deleting… $done of ${ids.size}")
+        // Small batches: the provider deletes each picture message's parts and
+        // files one at a time, so a big MMS batch can run for minutes silently.
+        for ((uri, rows, size, noun) in listOf(
+            Batch(Telephony.Sms.CONTENT_URI, sms, 200, "texts"),
+            Batch(Telephony.Mms.CONTENT_URI, mms, 20, "picture messages"),
+        )) {
+            for (chunk in rows.chunked(size)) {
+                onProgress("Deleting $noun… $done of ${ids.size}")
                 try {
                     context.contentResolver.delete(
                         uri,
@@ -241,6 +246,27 @@ object SmsInbox {
                 done += chunk.size
             }
         }
+        onProgress("Deleting… $done of ${ids.size}")
+    }
+
+    private data class Batch(val uri: Uri, val rows: List<Long>, val size: Int, val noun: String)
+
+    /** Which of [ids] (our signed ids) are still in the provider. */
+    fun stillPresent(context: Context, ids: Collection<Long>): Set<Long> {
+        val present = HashSet<Long>()
+        for ((uri, rows, sign) in listOf(
+            Triple(Telephony.Sms.CONTENT_URI, ids.filter { it > 0 }, 1L),
+            Triple(Telephony.Mms.CONTENT_URI, ids.filter { it < 0 }.map { -it }, -1L),
+        )) {
+            for (chunk in rows.chunked(500)) {
+                context.contentResolver.query(
+                    uri, arrayOf("_id"),
+                    "_id IN (${chunk.joinToString(",") { "?" }})",
+                    chunk.map { it.toString() }.toTypedArray(), null,
+                )?.use { c -> while (c.moveToNext()) present += sign * c.getLong(0) }
+            }
+        }
+        return present
     }
 
     /** Writes an incoming SMS to the inbox (our duty while we hold the default SMS role). */
