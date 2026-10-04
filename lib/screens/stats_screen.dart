@@ -93,7 +93,7 @@ class _StatsScreenState extends State<StatsScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('$total spam texts', style: theme.textTheme.headlineSmall),
+        Text('$total spam texts', style: theme.textTheme.titleLarge),
         const SizedBox(height: 4),
         Text(
           'Since ${_monthLabel(months.first)} · busiest: '
@@ -114,13 +114,13 @@ class _StatsScreenState extends State<StatsScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        _MonthDetail(month: selected),
-        const SizedBox(height: 8),
         _Chart(
           months: months,
           selected: _selected,
           onSelect: (i) => setState(() => _selected = i),
         ),
+        const SizedBox(height: 8),
+        _MonthDetail(month: selected),
         const SizedBox(height: 4),
         Text(
           'Includes texts removed from the Spam folder after 90 days.',
@@ -137,13 +137,22 @@ class _StatsScreenState extends State<StatsScreen> {
     final header = theme.textTheme.labelMedium?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
+    // One line per cell: shrink rather than wrap on a narrow portrait screen.
+    Widget cell(String text, TextStyle? style, Alignment align) => FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: align,
+      child: Text(text, style: style, maxLines: 1),
+    );
     Widget row(List<String> cells, TextStyle? style) => Row(
       children: [
-        Expanded(flex: 3, child: Text(cells[0], style: style)),
+        Expanded(flex: 3, child: cell(cells[0], style, Alignment.centerLeft)),
         for (final c in cells.skip(1))
           Expanded(
             flex: 2,
-            child: Text(c, style: style, textAlign: TextAlign.end),
+            child: Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: cell(c, style, Alignment.centerRight),
+            ),
           ),
       ],
     );
@@ -197,7 +206,7 @@ class _LegendItem extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        Text('$label $count'),
+        Flexible(child: Text('$label $count')),
       ],
     );
   }
@@ -238,13 +247,23 @@ class _MonthDetail extends StatelessWidget {
 }
 
 /// Chart geometry shared by the y-axis column and the scrolling bars.
-const _chartHeight = 220.0;
 const _topPad = 8.0;
-const _bottomPad = 32.0;
+const _bottomPad = 36.0;
 const _slot = 28.0;
 const _barWidth = 18.0;
-const _axisWidth = 40.0;
-const _plotHeight = _chartHeight - _topPad - _bottomPad;
+
+/// Axis labels stay legible with large system text without crowding the
+/// bars on a narrow portrait screen.
+const _maxLabelScale = 1.3;
+
+/// "950", "1.5k", "12k".
+String _compact(int v) {
+  if (v < 1000) return '$v';
+  final k = v / 1000;
+  return k >= 10 || k == k.roundToDouble()
+      ? '${k.round()}k'
+      : '${k.toStringAsFixed(1)}k';
+}
 
 /// A round axis maximum and step (1, 2 or 5 × 10ⁿ) giving about 4 gridlines.
 (int, int) _niceScale(int max) {
@@ -275,14 +294,33 @@ class _Chart extends StatelessWidget {
     );
     final ink = theme.colorScheme.onSurfaceVariant;
     final width = months.length * _slot;
+    // Phones are mostly held upright: use a good share of the tall screen.
+    final height = (MediaQuery.sizeOf(context).height * 0.38).clamp(
+      200.0,
+      360.0,
+    );
+    final scaler = MediaQuery.textScalerOf(context)
+        .clamp(maxScaleFactor: _maxLabelScale);
+    final labelStyle = TextStyle(color: ink, fontSize: 11);
+    var axisWidth = 0.0;
+    for (var v = 0; v <= top; v += step) {
+      final tp = TextPainter(
+        text: TextSpan(text: _compact(v), style: labelStyle),
+        textDirection: TextDirection.ltr,
+        textScaler: scaler,
+      )..layout();
+      axisWidth = math.max(axisWidth, tp.width);
+    }
     return SizedBox(
-      height: _chartHeight,
+      height: height,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
-            width: _axisWidth,
-            child: CustomPaint(painter: _AxisPainter(top, step, ink)),
+            width: axisWidth + 8,
+            child: CustomPaint(
+              painter: _AxisPainter(top, step, labelStyle, scaler, height),
+            ),
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -294,8 +332,10 @@ class _Chart extends StatelessWidget {
                   if (i >= 0 && i < months.length) onSelect(i);
                 },
                 child: CustomPaint(
-                  size: Size(width, _chartHeight),
+                  size: Size(width, height),
                   painter: _BarsPainter(
+                    height: height,
+                    scaler: scaler,
                     months: months,
                     top: top,
                     step: step,
@@ -315,20 +355,24 @@ class _Chart extends StatelessWidget {
   }
 }
 
-double _yOf(num value, int top) =>
-    _topPad + _plotHeight - _plotHeight * value / top;
+double _plotHeight(double height) => height - _topPad - _bottomPad;
+
+double _yOf(num value, int top, double height) =>
+    _topPad + _plotHeight(height) * (1 - value / top);
 
 void _drawText(
   Canvas canvas,
   String text,
   Offset at,
-  TextStyle style, {
+  TextStyle style,
+  TextScaler scaler, {
   bool alignRight = false,
   bool center = false,
 }) {
   final tp = TextPainter(
     text: TextSpan(text: text, style: style),
     textDirection: TextDirection.ltr,
+    textScaler: scaler,
   )..layout();
   var dx = at.dx;
   if (alignRight) dx -= tp.width;
@@ -337,21 +381,23 @@ void _drawText(
 }
 
 class _AxisPainter extends CustomPainter {
-  _AxisPainter(this.top, this.step, this.ink);
+  _AxisPainter(this.top, this.step, this.style, this.scaler, this.height);
 
   final int top;
   final int step;
-  final Color ink;
+  final TextStyle style;
+  final TextScaler scaler;
+  final double height;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final style = TextStyle(color: ink, fontSize: 11);
     for (var v = 0; v <= top; v += step) {
       _drawText(
         canvas,
-        '$v',
-        Offset(size.width - 6, _yOf(v, top)),
+        _compact(v),
+        Offset(size.width - 6, _yOf(v, top, height)),
         style,
+        scaler,
         alignRight: true,
       );
     }
@@ -359,11 +405,17 @@ class _AxisPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_AxisPainter old) =>
-      old.top != top || old.step != step || old.ink != ink;
+      old.top != top ||
+      old.step != step ||
+      old.style != style ||
+      old.scaler != scaler ||
+      old.height != height;
 }
 
 class _BarsPainter extends CustomPainter {
   _BarsPainter({
+    required this.height,
+    required this.scaler,
     required this.months,
     required this.top,
     required this.step,
@@ -374,6 +426,8 @@ class _BarsPainter extends CustomPainter {
     required this.highlight,
   });
 
+  final double height;
+  final TextScaler scaler;
   final List<MonthStats> months;
   final int top;
   final int step;
@@ -389,13 +443,13 @@ class _BarsPainter extends CustomPainter {
       ..color = grid
       ..strokeWidth = 1;
     for (var v = 0; v <= top; v += step) {
-      final y = _yOf(v, top);
+      final y = _yOf(v, top, height);
       canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
     if (selected != null) {
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(selected! * _slot + 1, 0, _slot - 2, _chartHeight),
+          Rect.fromLTWH(selected! * _slot + 1, 0, _slot - 2, height),
           const Radius.circular(6),
         ),
         Paint()..color = highlight.withValues(alpha: 0.6),
@@ -403,7 +457,7 @@ class _BarsPainter extends CustomPainter {
     }
 
     final style = TextStyle(color: ink, fontSize: 10);
-    final baseline = _yOf(0, top);
+    final baseline = _yOf(0, top, height);
     for (var i = 0; i < months.length; i++) {
       final m = months[i];
       final left = i * _slot + (_slot - _barWidth) / 2;
@@ -414,7 +468,7 @@ class _BarsPainter extends CustomPainter {
       var cursor = baseline;
       for (var s = 0; s < segments.length; s++) {
         final (category, count) = segments[s];
-        final h = _plotHeight * count / top;
+        final h = _plotHeight(height) * count / top;
         // 2px surface gap between stacked segments, never hiding a segment.
         final gap = s == 0 ? 0.0 : math.min(2.0, h / 2);
         final rect = Rect.fromLTRB(left, cursor - h, left + _barWidth, cursor);
@@ -438,14 +492,16 @@ class _BarsPainter extends CustomPainter {
         _monthNames[m.month - 1][0],
         Offset(cx, baseline + 4),
         style,
+        scaler,
         center: true,
       );
       if (m.month == 1 || i == 0) {
         _drawText(
           canvas,
           '${m.year}',
-          Offset(cx, baseline + 17),
+          Offset(cx, baseline + 19),
           style.copyWith(fontWeight: FontWeight.bold),
+          scaler,
           center: true,
         );
       }
@@ -457,5 +513,7 @@ class _BarsPainter extends CustomPainter {
       old.months != months ||
       old.selected != selected ||
       old.brightness != brightness ||
-      old.top != top;
+      old.top != top ||
+      old.height != height ||
+      old.scaler != scaler;
 }
