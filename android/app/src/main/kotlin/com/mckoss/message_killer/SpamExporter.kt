@@ -27,26 +27,99 @@ object SpamExporter {
         return Result(entries.size, listOf(json, csv))
     }
 
-    /** Saves the flagged-senders list to Downloads (JSON + CSV), e.g. to share with someone. */
-    fun exportFlagged(context: Context): Result {
-        val senders = SpamStore.get(context).flaggedSenders()
+    /** Per-sender statistics for everything in the Spam folder (one row per number). */
+    data class SenderStats(
+        val sender: String,
+        val flagged: Boolean,
+        val total: Int,
+        val byCategory: Map<String, Int>,
+        val byStatus: Map<String, Int>,
+        val first: Long,
+        val last: Long,
+        val spanDays: Long,
+        val activeDays: Int,
+        val maxInOneDay: Int,
+    ) {
+        val perDay: Double get() = total.toDouble() / spanDays
+    }
+
+    fun senderStats(context: Context): List<SenderStats> {
+        val store = SpamStore.get(context)
+        val tainted = store.taintedSenders()
+        val zone = java.time.ZoneId.systemDefault()
+        return store.list()
+            .groupBy { Classifier.normalizeSender(it.sender) }
+            .map { (key, entries) ->
+                val first = entries.minOf { it.messageTime }
+                val last = entries.maxOf { it.messageTime }
+                val perDay = entries.groupingBy {
+                    java.time.Instant.ofEpochMilli(it.messageTime).atZone(zone).toLocalDate()
+                }.eachCount()
+                SenderStats(
+                    sender = entries.first().sender,
+                    flagged = key in tainted,
+                    total = entries.size,
+                    byCategory = entries.groupingBy { it.category }.eachCount(),
+                    byStatus = entries.groupingBy { it.status }.eachCount(),
+                    first = first,
+                    last = last,
+                    spanDays = java.util.concurrent.TimeUnit.MILLISECONDS.toDays(last - first) + 1,
+                    activeDays = perDay.size,
+                    maxInOneDay = perDay.values.max(),
+                )
+            }
+            .sortedByDescending { it.total }
+    }
+
+    /**
+     * Saves a per-sender report (counts by category and status, first/last
+     * date, texts per day, busiest day) to Downloads as JSON + CSV, for
+     * analysis or sharing.
+     */
+    fun exportSenderReport(context: Context): Result {
+        val stats = senderStats(context)
         val stamp = SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.US).format(Date())
-        val base = "message-killer-flagged-senders-$stamp"
+        val base = "message-killer-senders-$stamp"
+        val categories = listOf("political", "commercial", "phishing", SpamStore.CATEGORY_PRUNED)
+        val statuses = listOf(SpamStore.STATUS_DELETED, SpamStore.STATUS_PENDING, SpamStore.STATUS_SILENCED)
         val json = JSONArray()
-        senders.forEach {
+        stats.forEach { s ->
             json.put(JSONObject().apply {
-                put("sender", it.sender)
-                put("flaggedAt", isoTime(it.addedAt))
-                put("textsInSpamFolder", it.messages)
+                put("sender", s.sender)
+                put("flagged", s.flagged)
+                put("texts", s.total)
+                put("byCategory", JSONObject(s.byCategory))
+                put("byStatus", JSONObject(s.byStatus))
+                put("firstReceived", isoTime(s.first))
+                put("lastReceived", isoTime(s.last))
+                put("spanDays", s.spanDays)
+                put("textsPerDay", "%.3f".format(Locale.US, s.perDay).toDouble())
+                put("activeDays", s.activeDays)
+                put("maxInOneDay", s.maxInOneDay)
             })
         }
         val csv = buildString {
-            append("sender,flagged_at,texts_in_spam_folder\r\n")
-            senders.forEach { append(listOf(it.sender, isoTime(it.addedAt), it.messages.toString()).joinToString(",") { v -> csvField(v) }).append("\r\n") }
+            append(
+                (listOf("sender", "flagged", "texts") + categories + statuses +
+                    listOf("first_received", "last_received", "span_days", "texts_per_day", "texts_per_week",
+                        "active_days", "max_in_one_day")).joinToString(",")
+            ).append("\r\n")
+            stats.forEach { s ->
+                append(
+                    (listOf(s.sender, s.flagged.toString(), s.total.toString()) +
+                        categories.map { (s.byCategory[it] ?: 0).toString() } +
+                        statuses.map { (s.byStatus[it] ?: 0).toString() } +
+                        listOf(
+                            isoTime(s.first), isoTime(s.last), s.spanDays.toString(),
+                            "%.3f".format(Locale.US, s.perDay), "%.2f".format(Locale.US, s.perDay * 7),
+                            s.activeDays.toString(), s.maxInOneDay.toString(),
+                        )).joinToString(",") { v -> csvField(v) }
+                ).append("\r\n")
+            }
         }
         write(context, "$base.json", "application/json", json.toString(2))
         write(context, "$base.csv", "text/csv", csv)
-        return Result(senders.size, listOf("$base.json", "$base.csv"))
+        return Result(stats.size, listOf("$base.json", "$base.csv"))
     }
 
     private fun write(context: Context, name: String, mime: String, content: String) {

@@ -57,7 +57,16 @@ class _SpamFolderScreenState extends State<SpamFolderScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Spam folder'),
-        actions: [ExportSpamButton(api: widget.api)],
+        actions: [
+          ExportSpamButton(
+            api: widget.api,
+            export: widget.api.exportFlagged,
+            noun: 'sender',
+            tooltip: 'Sender report',
+            icon: Icons.analytics_outlined,
+          ),
+          ExportSpamButton(api: widget.api),
+        ],
       ),
       body: entries == null
           ? const LoadingView('Loading the Spam folder…')

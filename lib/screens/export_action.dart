@@ -11,6 +11,8 @@ class ExportSpamButton extends StatefulWidget {
     this.pendingOnly = false,
     this.export,
     this.noun = 'message',
+    this.tooltip = 'Export to Downloads',
+    this.icon = Icons.download,
   });
 
   final NativeApi api;
@@ -21,6 +23,9 @@ class ExportSpamButton extends StatefulWidget {
 
   /// What the exported rows are, for the confirmation ("Saved 12 senders").
   final String noun;
+
+  final String tooltip;
+  final IconData icon;
 
   @override
   State<ExportSpamButton> createState() => _ExportSpamButtonState();
@@ -54,13 +59,13 @@ class _ExportSpamButtonState extends State<ExportSpamButton> {
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      tooltip: 'Export to Downloads',
+      tooltip: widget.tooltip,
       icon: _busy
           ? const SizedBox.square(
               dimension: 20,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : const Icon(Icons.download),
+          : Icon(widget.icon),
       onPressed: _busy ? null : _export,
     );
   }

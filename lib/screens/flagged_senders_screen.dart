@@ -84,7 +84,8 @@ class _FlaggedSendersScreenState extends State<FlaggedSendersScreen> {
                           ? 'No flagged senders yet.'
                           : '${plural(senders.length, 'sender')} sent political texts, so everything '
                                 'they send is filtered (except verification codes). '
-                                'Use the download icon to save this list to share.',
+                                'The download icon saves a report of every spam sender: texts per category, '
+                                'first and last date, texts per day, and busiest day (JSON + CSV).',
                       style: theme.textTheme.bodyMedium,
                     ),
                   );

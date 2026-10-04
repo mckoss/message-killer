@@ -349,7 +349,8 @@ abstract class NativeApi {
   /// Un-flags [sender] (normalized, as in [FlaggedSender.sender]).
   Future<void> unflagSender(String sender);
 
-  /// Saves the flagged-senders list to Downloads.
+  /// Saves a per-sender report (texts per category/status, first and last
+  /// date, texts per day, busiest day) to Downloads.
   Future<ExportResult> exportFlagged();
 }
 

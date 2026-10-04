@@ -118,7 +118,7 @@ class MainActivity : FlutterActivity() {
                 }
             }
             "exportFlagged" -> background(result) {
-                val export = SpamExporter.exportFlagged(this)
+                val export = SpamExporter.exportSenderReport(this)
                 mapOf("count" to export.count, "files" to export.files)
             }
             "exportSpam" -> background(result) {
