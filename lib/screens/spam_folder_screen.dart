@@ -6,6 +6,7 @@ import '../native_api.dart';
 import 'loading_view.dart';
 import 'allow_sender.dart';
 import 'cleanup_flow.dart';
+import 'confidence.dart';
 import 'export_action.dart';
 
 class SpamFolderScreen extends StatefulWidget {
@@ -38,18 +39,38 @@ class _SpamFolderScreenState extends State<SpamFolderScreen> {
   /// than re-filtered on every build.
   Map<SpamCategory?, List<SpamEntry>> _byCategory = const {};
 
+  /// Least sure first (default) or newest first.
+  bool _leastSureFirst = true;
+
   Future<void> _load() async {
     final entries = await widget.api.listSpam();
     if (!mounted) return;
-    final byCategory = <SpamCategory?, List<SpamEntry>>{null: entries};
-    for (final e in entries) {
-      (byCategory[e.category] ??= []).add(e);
-    }
     setState(() {
       _entries = entries;
-      _byCategory = byCategory;
+      _byCategory = _group(entries);
     });
   }
+
+  /// Sorted once per load or sort change, then split by category (each
+  /// category list keeps the order).
+  Map<SpamCategory?, List<SpamEntry>> _group(List<SpamEntry> entries) {
+    final sorted = List.of(entries);
+    if (_leastSureFirst) {
+      sorted.sort(SpamEntry.leastSureFirst);
+    } else {
+      sorted.sort((a, b) => b.messageTime.compareTo(a.messageTime));
+    }
+    final byCategory = <SpamCategory?, List<SpamEntry>>{null: sorted};
+    for (final e in sorted) {
+      (byCategory[e.category] ??= []).add(e);
+    }
+    return byCategory;
+  }
+
+  void _toggleSort() => setState(() {
+    _leastSureFirst = !_leastSureFirst;
+    if (_entries case final entries?) _byCategory = _group(entries);
+  });
 
   Future<void> _openEntry(SpamEntry entry) async {
     final removed = await Navigator.of(context).push<bool>(
@@ -111,8 +132,27 @@ class _SpamFolderScreenState extends State<SpamFolderScreen> {
                             ],
                           ),
                           const SizedBox(height: 8),
+                          if (all!.isNotEmpty)
+                            // Wraps onto two lines on a narrow portrait screen.
+                            Wrap(
+                              alignment: WrapAlignment.spaceBetween,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 8,
+                              children: [
+                                ConfidenceSummary(entries),
+                                TextButton.icon(
+                                  onPressed: _toggleSort,
+                                  icon: const Icon(Icons.sort, size: 18),
+                                  label: Text(
+                                    _leastSureFirst
+                                        ? 'Least sure first'
+                                        : 'Newest first',
+                                  ),
+                                ),
+                              ],
+                            ),
                           Text(
-                            all!.isEmpty
+                            all.isEmpty
                                 ? 'Nothing filtered yet. Silenced and deleted texts will show up here.'
                                 : 'Filtered texts are kept here for ${widget.retentionDays} days, then removed for good.',
                             style: Theme.of(context).textTheme.bodySmall,
@@ -129,11 +169,7 @@ class _SpamFolderScreenState extends State<SpamFolderScreen> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    subtitle: Text(
-                      '${entry.category.label} · ${entry.body}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    subtitle: confidenceSubtitle(context, entry),
                     trailing: Text(formatShortDate(entry.messageTime)),
                     onTap: () => _openEntry(entry),
                   );
@@ -204,7 +240,8 @@ class SpamEntryScreen extends StatelessWidget {
             subtitle: Text(entry.category.label),
           ),
           Text(
-            'Why it was flagged (score ${entry.score.toStringAsFixed(1)})',
+            'Why it was flagged (score ${entry.score.toStringAsFixed(1)}'
+            '${entry.confidence == null ? '' : ' · ${entry.confidence!.description}'})',
             style: theme.textTheme.titleSmall,
           ),
           const SizedBox(height: 8),

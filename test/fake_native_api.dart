@@ -270,6 +270,8 @@ SpamEntry spamEntry(
   SpamStatus status = SpamStatus.silenced,
   String sender = '88022',
   SpamCategory category = SpamCategory.political,
+  double score = 6,
+  DateTime? time,
 }) => SpamEntry(
   category: category,
   id: id,
@@ -277,9 +279,9 @@ SpamEntry spamEntry(
   status: status,
   sender: sender,
   body: 'Chip in \$5 now at actblue.com #$id',
-  messageTime: DateTime(2026, 9, 30, 14, 5),
+  messageTime: time ?? DateTime(2026, 9, 30, 14, 5),
   filedAt: DateTime(2026, 9, 30, 14, 5),
-  score: 6,
+  score: score,
   reasons: const [
     'Asks for a donation',
     'Fundraising platform (ActBlue/WinRed/Anedot)',

@@ -4,6 +4,7 @@ import '../format.dart';
 import '../native_api.dart';
 import 'loading_view.dart';
 import 'allow_sender.dart';
+import 'confidence.dart';
 import 'export_action.dart';
 import 'spam_folder_screen.dart';
 
@@ -37,9 +38,9 @@ class _CleanupPreviewScreenState extends State<CleanupPreviewScreen> {
     final all = await widget.api.listSpam();
     if (!mounted) return;
     setState(
-      () => _pending = all
-          .where((e) => e.status == SpamStatus.pendingDelete)
-          .toList(),
+      () => _pending =
+          all.where((e) => e.status == SpamStatus.pendingDelete).toList()
+            ..sort(SpamEntry.leastSureFirst),
     );
   }
 
@@ -71,16 +72,30 @@ class _CleanupPreviewScreenState extends State<CleanupPreviewScreen> {
                 if (index == 0) {
                   return Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Text(
-                      pending.isEmpty
-                          ? 'Nothing left to delete.'
-                          : '${widget.scan == null ? '' : '${widget.scan!.summary}. '}'
-                                '${plural(count, 'text')} will be deleted from your inbox. '
-                                'Copies stay in the Spam folder for ${widget.status.retentionDays} days.\n\n'
-                                'Tap a text to see why it was flagged. Tap the shield to always allow a sender '
-                                '(their texts stay in your inbox). '
-                                'Tip: export a backup first (download icon above).',
-                      style: theme.textTheme.bodyMedium,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          pending.isEmpty
+                              ? 'Nothing left to delete.'
+                              : '${widget.scan == null ? '' : '${widget.scan!.summary}. '}'
+                                    '${plural(count, 'text')} will be deleted from your inbox. '
+                                    'Copies stay in the Spam folder for ${widget.status.retentionDays} days.\n\n'
+                                    'Tap a text to see why it was flagged. Tap the shield to always allow a sender '
+                                    '(their texts stay in your inbox). '
+                                    'Tip: export a backup first (download icon above).',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        if (pending.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          ConfidenceSummary(pending),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Least sure first: check the yellow ones for mistakes.',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
+                      ],
                     ),
                   );
                 }
@@ -91,11 +106,7 @@ class _CleanupPreviewScreenState extends State<CleanupPreviewScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  subtitle: Text(
-                    '${entry.category.label} · ${entry.body}',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  subtitle: confidenceSubtitle(context, entry),
                   leading: Text(formatShortDate(entry.messageTime)),
                   trailing: IconButton(
                     tooltip: 'Allow sender',

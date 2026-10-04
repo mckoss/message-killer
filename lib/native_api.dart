@@ -132,6 +132,26 @@ class MonthStats {
   }
 }
 
+/// How sure the filter is that a text is spam, from its score (filtered at 3).
+enum Confidence {
+  unsure('Unsure', 'might not be spam'),
+  likely('Likely', 'likely spam'),
+  certain('Certain', 'almost certainly spam');
+
+  const Confidence(this.label, this.description);
+
+  final String label;
+
+  /// For sentences: "score 3.5 · might not be spam".
+  final String description;
+
+  static const unsureBelow = 4.0;
+  static const certainFrom = 6.0;
+
+  static Confidence ofScore(double score) =>
+      score < unsureBelow ? unsure : (score < certainFrom ? likely : certain);
+}
+
 /// One message in the Spam folder.
 class SpamEntry {
   const SpamEntry({
@@ -165,6 +185,19 @@ class SpamEntry {
     SpamStatus.pendingDelete => 'Waiting to be deleted from inbox',
     SpamStatus.deleted => 'Deleted from inbox',
   };
+
+  /// Null for texts that aren't spam verdicts ("Old messages" from Prune).
+  Confidence? get confidence =>
+      category == SpamCategory.pruned ? null : Confidence.ofScore(score);
+
+  /// Least sure first (most likely mistakes on top), then newest first;
+  /// pruned texts last.
+  static int leastSureFirst(SpamEntry a, SpamEntry b) {
+    final ca = a.confidence?.index ?? Confidence.values.length;
+    final cb = b.confidence?.index ?? Confidence.values.length;
+    if (ca != cb) return ca.compareTo(cb);
+    return b.messageTime.compareTo(a.messageTime);
+  }
 
   factory SpamEntry.fromMap(Map<Object?, Object?> m) => SpamEntry(
     id: (m['id'] as num).toInt(),

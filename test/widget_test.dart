@@ -579,4 +579,55 @@ void main() {
     await tester.pumpAndSettle();
     expect(api.ownerNames, ['Michael', 'Mike']);
   });
+
+  testWidgets('spam folder: least sure first, then newest; toggle to newest', (
+    tester,
+  ) async {
+    final api = FakeNativeApi(
+      spam: [
+        spamEntry(
+          1,
+          sender: 'Certain old',
+          score: 9,
+          time: DateTime(2026, 9, 1),
+        ),
+        spamEntry(
+          2,
+          sender: 'Unsure old',
+          score: 3.2,
+          time: DateTime(2026, 8, 1),
+        ),
+        spamEntry(
+          3,
+          sender: 'Unsure new',
+          score: 3.5,
+          time: DateTime(2026, 9, 20),
+        ),
+        spamEntry(
+          4,
+          sender: 'Likely newest',
+          score: 5,
+          time: DateTime(2026, 9, 29),
+        ),
+      ],
+    );
+    await tester.pumpWidget(MessageKillerApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Spam folder'));
+    await tester.pumpAndSettle();
+
+    double y(String s) => tester.getTopLeft(find.text(s)).dy;
+    expect(find.text('2 unsure'), findsOneWidget);
+    expect(find.text('1 likely'), findsOneWidget);
+    expect(find.text('1 certain'), findsOneWidget);
+    expect(y('Unsure new'), lessThan(y('Unsure old')));
+    expect(y('Unsure old'), lessThan(y('Likely newest')));
+    expect(y('Likely newest'), lessThan(y('Certain old')));
+
+    await tester.tap(find.text('Least sure first'));
+    await tester.pumpAndSettle();
+    expect(find.text('Newest first'), findsOneWidget);
+    expect(y('Likely newest'), lessThan(y('Unsure new')));
+    expect(y('Certain old'), lessThan(y('Unsure old')));
+  });
 }

@@ -14,6 +14,10 @@ RCS chat keeps working.
   reasons it was flagged. "Not spam" removes it and allow-lists the
   sender. **Export** (download icon) saves everything to your Downloads
   folder as JSON and CSV.
+- **Confidence colors:** every flagged text is tagged Unsure (yellow, score
+  under 4), Likely (orange, 4–6) or Certain (red, 6+). The review screen and
+  the Spam folder list the least sure first (newest first within each), so
+  likely mistakes are on top; the Spam folder can switch to newest first.
 - **Preview:** before any delete, you see exactly which texts will go. The
   shield button on any text **allows that sender** (their texts stay, and are
   never filtered again).
