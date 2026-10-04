@@ -12,7 +12,7 @@ import kotlin.math.abs
  * removed from the inbox. Entries are kept for [RETENTION_DAYS] days.
  */
 class SpamStore private constructor(context: Context) :
-    SQLiteOpenHelper(context.applicationContext, "spam.db", null, 4) {
+    SQLiteOpenHelper(context.applicationContext, "spam.db", null, 5) {
 
     data class Entry(
         val id: Long,
@@ -66,6 +66,7 @@ class SpamStore private constructor(context: Context) :
         )
         db.execSQL("CREATE INDEX spam_time ON spam(message_time)")
         createTainted(db)
+        createHistory(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -82,6 +83,39 @@ class SpamStore private constructor(context: Context) :
         if (oldVersion in 1..3) {
             db.execSQL("ALTER TABLE spam ADD COLUMN confirmed INTEGER NOT NULL DEFAULT 0")
         }
+        if (oldVersion in 1..4) createHistory(db)
+    }
+
+    /**
+     * Monthly spam counts for entries already purged from the Spam folder, so the
+     * "Spam over time" chart keeps its full history after the 90-day retention.
+     */
+    private fun createHistory(db: SQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS history (month TEXT NOT NULL, category TEXT NOT NULL, " +
+                "count INTEGER NOT NULL, PRIMARY KEY (month, category))"
+        )
+    }
+
+    /** "2026-09" for an entry's received time, in local time. */
+    private val monthExpr = "strftime('%Y-%m', message_time / 1000, 'unixepoch', 'localtime')"
+
+    /** Spam texts per month and category (Spam folder + purged history), oldest first. */
+    @Synchronized
+    fun monthlyCounts(): List<Triple<String, String, Int>> {
+        val totals = LinkedHashMap<Pair<String, String>, Int>()
+        val db = readableDatabase
+        db.rawQuery(
+            "SELECT $monthExpr, category, COUNT(*) FROM spam WHERE category != ? GROUP BY 1, 2",
+            arrayOf(CATEGORY_PRUNED),
+        ).use { c -> while (c.moveToNext()) totals[c.getString(0) to c.getString(1)] = c.getInt(2) }
+        db.rawQuery("SELECT month, category, count FROM history", null).use { c ->
+            while (c.moveToNext()) {
+                val key = c.getString(0) to c.getString(1)
+                totals[key] = (totals[key] ?: 0) + c.getInt(2)
+            }
+        }
+        return totals.map { (k, n) -> Triple(k.first, k.second, n) }.sortedBy { it.first }
     }
 
     /**
@@ -275,11 +309,23 @@ class SpamStore private constructor(context: Context) :
     }
 
     @Synchronized
-    fun purgeExpired(now: Long = System.currentTimeMillis()): Int =
-        writableDatabase.delete(
-            "spam", "filed_at < ?",
-            arrayOf((now - TimeUnit.DAYS.toMillis(RETENTION_DAYS)).toString()),
-        )
+    fun purgeExpired(now: Long = System.currentTimeMillis()): Int = inTransaction {
+        val cutoff = (now - TimeUnit.DAYS.toMillis(RETENTION_DAYS)).toString()
+        val db = writableDatabase
+        // Keep the monthly counts for the chart before the entries go.
+        // (No UPSERT: Android 10 ships SQLite 3.22.)
+        db.rawQuery(
+            "SELECT $monthExpr, category, COUNT(*) FROM spam WHERE filed_at < ? AND category != ? GROUP BY 1, 2",
+            arrayOf(cutoff, CATEGORY_PRUNED),
+        ).use { c ->
+            while (c.moveToNext()) {
+                val args = arrayOf(c.getInt(2).toString(), c.getString(0), c.getString(1))
+                db.execSQL("UPDATE history SET count = count + ? WHERE month = ? AND category = ?", args)
+                db.execSQL("INSERT OR IGNORE INTO history (count, month, category) VALUES (?, ?, ?)", args)
+            }
+        }
+        db.delete("spam", "filed_at < ?", arrayOf(cutoff))
+    }
 
     @Synchronized
     fun counts(now: Long = System.currentTimeMillis()): Map<String, Int> {

@@ -93,6 +93,11 @@ class MainActivity : FlutterActivity() {
                 val (deleted, failed) = Cleanup.prune(this, call.argument<List<String>>("senders") ?: emptyList())
                 mapOf("deleted" to deleted, "failed" to failed)
             }
+            "monthlyStats" -> background(result) {
+                store.monthlyCounts().map { (month, category, count) ->
+                    mapOf("month" to month, "category" to category, "count" to count)
+                }
+            }
             "listRestorable" -> background(result) { Cleanup.restorable(this).map { it.toMap() } }
             // Separate from getStatus: re-checks every deleted entry, so the home
             // screen shows first and this count fills in after.

@@ -34,6 +34,10 @@ RCS chat keeps working.
   deleted text can also be restored from its Spam folder entry. "Allow
   sender" undoes this. The list is viewable and exportable under *Filter
   settings → Flagged senders*.
+- **Spam over time:** the chart icon on the home screen shows spam per
+  month as stacked bars (political / commercial / phishing), with totals
+  and a month-by-month table. Monthly counts are kept after texts leave the
+  Spam folder, so the history keeps growing past 90 days.
 - **Contacts are never filtered:** with Contacts access, texts from anyone in
   your contacts (including synced Google contacts) are never silenced or
   deleted. Other allowed senders can be viewed and removed under *Filter
@@ -177,6 +181,7 @@ message-killer/
 │       ├── home_screen.dart         # setup, live filter, cleanup, daily toggle
 │       ├── cleanup_flow.dart        # scan → default-app switch → delete → switch back
 │       ├── spam_folder_screen.dart  # 90-day Spam folder + detail
+│       ├── stats_screen.dart        # spam per month, stacked by category
 │       └── settings_screen.dart     # keywords, allow list, "test a message"
 ├── android/app/src/main/kotlin/com/mckoss/message_killer/
 │   ├── Classifier.kt                # rules engine (plain JVM, unit-tested)

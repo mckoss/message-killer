@@ -508,4 +508,51 @@ void main() {
     );
     expect(find.text('Deleted 120 old texts'), findsOneWidget);
   });
+
+  testWidgets('spam over time: stacked months, totals and table', (
+    tester,
+  ) async {
+    final api = FakeNativeApi()
+      ..monthRows = [
+        {'month': '2025-11', 'category': 'political', 'count': 40},
+        {'month': '2025-11', 'category': 'commercial', 'count': 5},
+        {'month': '2026-02', 'category': 'phishing', 'count': 3},
+        {'month': '2026-02', 'category': 'political', 'count': 12},
+        {'month': '2026-02', 'category': 'pruned', 'count': 999},
+      ];
+    await tester.pumpWidget(MessageKillerApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Spam over time'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('60 spam texts'), findsOneWidget);
+    expect(
+      find.textContaining('Since November 2025 · busiest: November 2025 (45)'),
+      findsOneWidget,
+    );
+    expect(find.text('Political 52'), findsOneWidget);
+    expect(find.text('Commercial 5'), findsOneWidget);
+    expect(find.text('Phishing / scam 3'), findsOneWidget);
+
+    // Empty months are filled in.
+    await scrollTo(tester, find.text('Dec 2025'));
+    expect(find.text('Jan 2026'), findsOneWidget);
+
+    await tester.tap(find.text('Feb 2026'));
+    await tester.pumpAndSettle();
+    expect(find.text('February 2026: 15'), findsOneWidget);
+  });
+
+  test('MonthStats.fromRows fills gaps and drops bad rows', () {
+    final months = MonthStats.fromRows([
+      {'month': '2024-12', 'category': 'political', 'count': 2},
+      {'month': '2025-02', 'category': 'commercial', 'count': 1},
+      {'month': 'bogus', 'category': 'political', 'count': 7},
+      {'month': '2025-01', 'category': 'unknown', 'count': 7},
+    ]);
+    expect(
+      [for (final m in months) '${m.year}-${m.month}:${m.total}'],
+      ['2024-12:2', '2025-1:0', '2025-2:1'],
+    );
+  });
 }

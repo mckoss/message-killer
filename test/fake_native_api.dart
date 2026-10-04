@@ -249,6 +249,14 @@ class FakeNativeApi implements NativeApi {
     calls.add('exportFlagged');
     return ExportResult(count: flagged.length, files: const ['flagged.json']);
   }
+
+  List<Map<Object?, Object?>> monthRows = [];
+
+  @override
+  Future<List<MonthStats>> monthlyStats() async {
+    calls.add('monthlyStats');
+    return MonthStats.fromRows(monthRows);
+  }
 }
 
 SpamEntry spamEntry(

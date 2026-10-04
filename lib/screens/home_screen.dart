@@ -8,6 +8,7 @@ import 'prune_screen.dart';
 import 'restore_screen.dart';
 import 'settings_screen.dart';
 import 'spam_folder_screen.dart';
+import 'stats_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.api});
@@ -84,6 +85,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       appBar: AppBar(
         title: const Text('Message Killer'),
         actions: [
+          IconButton(
+            tooltip: 'Spam over time',
+            icon: const Icon(Icons.bar_chart),
+            onPressed: () => _open(StatsScreen(api: api)),
+          ),
           IconButton(
             tooltip: 'Filter settings',
             icon: const Icon(Icons.tune),

@@ -89,6 +89,49 @@ enum SpamCategory {
       values.where((c) => c.key == key).firstOrNull;
 }
 
+/// Spam filed in one calendar month, by category (pruned texts excluded).
+class MonthStats {
+  MonthStats(this.year, this.month, [Map<SpamCategory, int>? counts])
+    : counts = counts ?? {};
+
+  final int year;
+
+  /// 1-12.
+  final int month;
+  final Map<SpamCategory, int> counts;
+
+  int count(SpamCategory c) => counts[c] ?? 0;
+  int get total => counts.values.fold(0, (a, b) => a + b);
+
+  /// Folds native rows ({month: "YYYY-MM", category, count}) into one entry
+  /// per month, oldest first, with empty months filled in.
+  static List<MonthStats> fromRows(List<Map<Object?, Object?>> rows) {
+    final byKey = <int, MonthStats>{};
+    for (final r in rows) {
+      final category = SpamCategory.fromKey(r['category']);
+      final parts = (r['month'] as String? ?? '').split('-');
+      if (category == null ||
+          category == SpamCategory.pruned ||
+          parts.length != 2) {
+        continue;
+      }
+      final y = int.tryParse(parts[0]);
+      final m = int.tryParse(parts[1]);
+      if (y == null || m == null || m < 1 || m > 12) continue;
+      final s = byKey.putIfAbsent(y * 12 + m - 1, () => MonthStats(y, m));
+      s.counts[category] =
+          s.count(category) + ((r['count'] as num?)?.toInt() ?? 0);
+    }
+    if (byKey.isEmpty) return [];
+    final first = byKey.keys.reduce((a, b) => a < b ? a : b);
+    final last = byKey.keys.reduce((a, b) => a > b ? a : b);
+    return [
+      for (var k = first; k <= last; k++)
+        byKey[k] ?? MonthStats(k ~/ 12, k % 12 + 1),
+    ];
+  }
+}
+
 /// One message in the Spam folder.
 class SpamEntry {
   const SpamEntry({
@@ -352,6 +395,10 @@ abstract class NativeApi {
   /// Saves a per-sender report (texts per category/status, first and last
   /// date, texts per day, busiest day) to Downloads.
   Future<ExportResult> exportFlagged();
+
+  /// Spam per month and category, as far back as the Spam folder and its
+  /// history go (oldest first, empty months included).
+  Future<List<MonthStats>> monthlyStats();
 }
 
 class MethodChannelNativeApi implements NativeApi {
@@ -531,6 +578,14 @@ class MethodChannelNativeApi implements NativeApi {
     return ExportResult(
       count: (m['count'] as num?)?.toInt() ?? 0,
       files: ((m['files'] as List?) ?? const []).cast<String>(),
+    );
+  }
+
+  @override
+  Future<List<MonthStats>> monthlyStats() async {
+    final rows = await _channel.invokeMethod<List<Object?>>('monthlyStats');
+    return MonthStats.fromRows(
+      (rows ?? const []).cast<Map<Object?, Object?>>(),
     );
   }
 }
