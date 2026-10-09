@@ -328,12 +328,12 @@ class Classifier(
             // promotion also needs real marketing language.
             Rule("Brand-name prefix", 0.5, Regex("""^\s*[\p{L}\p{N}][\p{L}\p{N}&'’. -]{1,30}:\s"""), C),
             Rule("Discount or sale offer", 2.0,
-                phrase("""\d{1,2}%\s+off|save\s+(an\s+)?(extra\s+|up\s+to\s+)?\d{1,2}%|\$\d+(\.\d\d)?\s+off|bogo|buy\s+one|free\s+shipping|promo\s+code|coupons?|use\s+code\s+\w+|(flash|clearance|semi-annual|black\s+friday|cyber\s+monday|end\s+of\s+season)\s+sale|on\s+sale|send\s+to\s+card"""), C),
+                phrase("""\d{1,2}%\s+off|store\s+credit|(use|enter|apply)\s+(this|the|your)\s+(promo\s+|discount\s+)?code\s+at\s+checkout|(promo|discount)\s+code|save\s+(an\s+)?(extra\s+|up\s+to\s+)?\d{1,2}%|\$\d+(\.\d\d)?\s+off|bogo|buy\s+one|free\s+shipping|promo\s+code|coupons?|use\s+code\s+\w+|(flash|clearance|semi-annual|black\s+friday|cyber\s+monday|end\s+of\s+season)\s+sale|on\s+sale|send\s+to\s+card"""), C),
             Rule("Shopping urgency", 1.0,
-                Regex("""(?i)\b(last\s+call|this\s+(month|week|weekend)\s+only|shop\s+now|get\s+'?em|limited\s+time|while\s+supplies\s+last|ends\s+(tonight|today|soon|sunday|midnight)|today\s+only|don'?t\s+miss|new\s+arrivals|back\s+in\s+stock|restock(ed)?|selling\s+(out|fast)|aren'?t\s+making\s+more)"""), C),
+                Regex("""(?i)\b(last\s+call|this\s+(month|week|weekend)\s+only|shop\s+(now|here)|(credit|offer|deal|sale|discount|coupon|points|rewards?)\s+expires?\s+(tomorrow|today|tonight|soon|at\s+midnight)|get\s+'?em|limited\s+time|while\s+supplies\s+last|ends\s+(tonight|today|soon|sunday|midnight)|today\s+only|don'?t\s+miss|new\s+arrivals|back\s+in\s+stock|restock(ed)?|selling\s+(out|fast)|aren'?t\s+making\s+more)"""), C),
             // SMS-marketing platforms (Postscript, Attentive, Klaviyo): used only for promotions.
             Rule("Marketing-platform link", 2.0,
-                Regex("""\b(pscrpt\.io|attn\.tv|klclick\d?\.com|kmail-lists\.com|txt\.so|i\.cvs\.com)\b""", RegexOption.IGNORE_CASE), C),
+                Regex("""\b(pscrpt\.io|attn\.tv|mcsms\.io|klclick\d?\.com|kmail-lists\.com|txt\.so|i\.cvs\.com)\b""", RegexOption.IGNORE_CASE), C),
             Rule("New-product pitch", 1.0,
                 phrase("""brand\s+new|new\s+(arrivals?|drops?|collection|styles?|colou?rs?|flavors?|releases?)|just\s+(dropped|landed|arrived|launched)|(fall|spring|summer|winter|holiday)\s+(collection|lineup|line|edit)|for\s+(fall|spring|summer|winter)"""), C),
             // "Ready to simplify the sale of 500 Elm Cir?", "we buy houses for cash".
