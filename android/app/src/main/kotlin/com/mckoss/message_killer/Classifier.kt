@@ -191,9 +191,12 @@ class Classifier(
             """^\W*(?:(?i:hi|hello|hey|hiya|dear|good\s+(?:morning|afternoon|evening))[,!]?\s+)(\p{Lu}\p{Ll}{1,14})\b(?!['’]s)"""
         )
 
-        /** "Anna, …", "Diane are u getting this", "Sam did you …" */
+        /**
+         * "Diane are u getting this", "Anna, did you …". A bare "Word," isn't enough:
+         * "Hurry, only 3 left!" starts the same way.
+         */
         private val NAME_FIRST = Regex(
-            """^\W*(\p{Lu}\p{Ll}{1,14})(?:\s*,|\s+(?i:are|r|is|did|do|can|could|have|how)\s+(?i:u|you)\b)"""
+            """^\W*(\p{Lu}\p{Ll}{1,14})\s*,?\s+(?i:are|r|is|did|do|can|could|have|how)\s+(?i:u|you)\b"""
         )
 
         /** Capitalized greeting words that aren't names. */
@@ -209,6 +212,7 @@ class Classifier(
             "quick", "reminder", "alert", "urgent", "final", "breaking", "update", "congratulations",
             "congrats", "welcome", "attention", "important", "notice", "order", "your", "our", "the", "this",
             "that", "it", "we", "you", "fyi", "btw", "lol", "omg", "wait", "listen", "look", "note", "heads",
+            "hurry", "quick", "now", "psst", "news", "surprise", "guess", "remember",
         )
 
         /** The name a text greets you by, if it opens with one. */
@@ -242,6 +246,12 @@ class Classifier(
 
         private const val FOOTER =
             """(reply|replying|txt|text|texting)\s+stop|opt[-\s]?out\s+at\s+any\s+time|stop\s*(2|to)\s*(end|quit|stop|opt[-\s]?out|unsub\w*)|stop2end|stop=end|\bend2end\b"""
+
+        /** False-urgency phrases, shared by the "urgency plus …" rules. */
+        private const val URGENCY = """ends?\s+(tonight|today|soon|sunday|at\s+midnight)|today\s+only|last\s+(chance|call)|limited[-\s]time|hurry|don'?t\s+miss|(expires?|expiring)\s+(tomorrow|today|tonight|soon|at\s+midnight|in\s+\d+\s+(hours?|days?))|final\s+hours|only\s+\d+\s+left|selling\s+(out|fast)|while\s+supplies\s+last|before\s+(it'?s|they'?re)\s+gone|before\s+it\s+goes|this\s+(month|week|weekend)\s+only|24\s+hours\s+only"""
+
+        /** Pushes to buy right now. */
+        private const val BUY_NOW = """shop\s+(now|here|today|the\s+sale)|buy\s+(now|today)|order\s+(now|today)|(at|to)\s+checkout|add\s+to\s+(your\s+)?cart|grab\s+(yours|it|one)|get\s+(yours|it|one)\s+(now|today|before)|redeem\s+(now|today|your|it)|use\s+(this|the|your)\s+code|use\s+code\b"""
 
         val BUILT_IN_RULES: List<Rule> = listOf(
             // ---------------------------------------------------------- political
@@ -331,6 +341,12 @@ class Classifier(
                 phrase("""\d{1,2}%\s+off|store\s+credit|(use|enter|apply)\s+(this|the|your)\s+(promo\s+|discount\s+)?code\s+at\s+checkout|(promo|discount)\s+code|save\s+(an\s+)?(extra\s+|up\s+to\s+)?\d{1,2}%|\$\d+(\.\d\d)?\s+off|bogo|buy\s+one|free\s+shipping|promo\s+code|coupons?|use\s+code\s+\w+|(flash|clearance|semi-annual|black\s+friday|cyber\s+monday|end\s+of\s+season)\s+sale|on\s+sale|send\s+to\s+card"""), C),
             Rule("Shopping urgency", 1.0,
                 Regex("""(?i)\b(last\s+call|this\s+(month|week|weekend)\s+only|shop\s+(now|here)|(credit|offer|deal|sale|discount|coupon|points|rewards?)\s+expires?\s+(tomorrow|today|tonight|soon|at\s+midnight)|get\s+'?em|limited\s+time|while\s+supplies\s+last|ends\s+(tonight|today|soon|sunday|midnight)|today\s+only|don'?t\s+miss|new\s+arrivals|back\s+in\s+stock|restock(ed)?|selling\s+(out|fast)|aren'?t\s+making\s+more)"""), C),
+            // False urgency plus a push to buy, anywhere in the text (either order):
+            // "credit expires tomorrow… use this code at checkout".
+            Rule("Urgency plus a push to buy", 2.0, Regex("""(?is)^(?=.*\b($URGENCY))(?=.*\b($BUY_NOW))"""), C),
+            // The same pressure on a donation ask: "Final hours to chip in. Donate now".
+            Rule("Urgency plus a donation ask", 1.5,
+                Regex("""(?is)^(?=.*\b($URGENCY|final\s+hours|midnight\s+deadline))(?=.*\b(donate|donation|chip\s+in|pitch\s+in|contribute|give\s+\$))"""), P),
             // SMS-marketing platforms (Postscript, Attentive, Klaviyo): used only for promotions.
             Rule("Marketing-platform link", 2.0,
                 Regex("""\b(pscrpt\.io|attn\.tv|mcsms\.io|klclick\d?\.com|kmail-lists\.com|txt\.so|i\.cvs\.com)\b""", RegexOption.IGNORE_CASE), C),

@@ -55,6 +55,9 @@ class ClassifierTest {
     private val normal = listOf(
         "Hey, are we still on for dinner tonight?",
         "Did you get my message about dinner?",
+        "Don't miss dinner tonight, I'm making lasagna",
+        "Reminder: your appointment is today at 3pm. Reply C to confirm",
+        "Your prescription is ready. Pick up today before 6pm",
         "Your refund of \$20 was issued as store credit to your account.",
         "How many votes did the HOA proposal get?",
         "Hi Mom. Running late, home by 7.",
@@ -73,6 +76,7 @@ class ClassifierTest {
 
     // More political texts that got through (Oct 2026), links shortened.
     private val morePolitical = listOf(
+        "Final hours to chip in before the deadline! Donate now",
         "Alex, you've been selected for a 1-min survey. Your input directly shapes Democratic strategy. Will you take it? http://s.alchemer.com/s3/xxxx?source=XXXX\n-PP,\nStop to End",
         "Hi Alex, I'm Sam w/ Contest Every Race. We're looking for folks in King County to help their local Dems. Want more info?\nStop to End",
         "Team Jane Doe: John Roe lost by just 20,217 votes in 2024. Keep Michigan blue by chipping in today. \n\nhttps://janeforsenate.co/xxxx\n\nStop to end",
@@ -133,6 +137,8 @@ class ClassifierTest {
         "FLASH SALE TODAY: 30% off everything. Shop shop.example.com/l/abc123 Reply STOP to opt out",
         "This month only! College students can save an extra 10% with Safeway forU. Txt STOP 2 end",
         "Shop Name: Heads up Alex your £12.54 store credit expires tomorrow!\n\nUse this code at checkout before it goes:\nCREDIT-XXXXXXXX \n\nSHOP HERE: https://mcsms.io/xxxx\n\n\nText STOP to opt out",
+        "Your 20% coupon expires tonight. Shop now at example.com",
+        "Last chance! Ends at midnight. Add to cart and use code SAVE",
         "Hey Alex, Rob at GV Solutions. Ready to simplify the sale of 123 Main Cir? We're experts in fair dealings. Ready for a chat?",
     )
 
@@ -297,6 +303,7 @@ class ClassifierTest {
             "Hi Team, the meeting moved to 3",
             "Where are you?",
             "Hey Kevin's mom, it's Sarah",
+            "Hurry, only 3 left! See you at the sale",
         )) {
             val r = named.classify(text, sender = "+12065550100")
             assertFalse("score=${r.score}, ${r.reasons}: $text", r.isSpam)
