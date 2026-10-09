@@ -35,3 +35,11 @@ String formatFullDate(DateTime t) =>
 
 String plural(int n, String one, [String? many]) =>
     '$n ${n == 1 ? one : (many ?? '${one}s')}';
+
+/// How to show a sender: RCS group chats are stored under a long random ID
+/// ("d4vt…@rcs.google.com"), and some texts have no sender at all.
+String displaySender(String sender) {
+  if (sender.isEmpty) return 'Unknown sender';
+  if (sender.endsWith('@rcs.google.com')) return 'RCS group chat';
+  return sender;
+}

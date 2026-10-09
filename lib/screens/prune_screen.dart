@@ -107,7 +107,9 @@ class _PruneScreenState extends State<PruneScreen> {
                         ? _selected.add(g.sender)
                         : _selected.remove(g.sender);
                   }),
-                  title: Text('${g.sender} · ${plural(g.count, 'text')}'),
+                  title: Text(
+                    '${displaySender(g.sender)} · ${plural(g.count, 'text')}',
+                  ),
                   subtitle: Text(
                     '${formatShortDate(g.oldest)} – ${formatShortDate(g.newest)}\n${g.sample}',
                     maxLines: 3,

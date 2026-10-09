@@ -102,7 +102,7 @@ class _CleanupPreviewScreenState extends State<CleanupPreviewScreen> {
                 final entry = pending[index - 1];
                 return ListTile(
                   title: Text(
-                    entry.sender.isEmpty ? 'Unknown sender' : entry.sender,
+                    displaySender(entry.sender),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),

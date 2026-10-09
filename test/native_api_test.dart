@@ -45,4 +45,13 @@ void main() {
     expect(plural(1, 'text'), '1 text');
     expect(plural(3, 'text'), '3 texts');
   });
+
+  test('displaySender names RCS group chats and blank senders', () {
+    expect(
+      displaySender('d4vtcnbsguzdinrxg4yd@rcs.google.com'),
+      'RCS group chat',
+    );
+    expect(displaySender(''), 'Unknown sender');
+    expect(displaySender('+12065550100'), '+12065550100');
+  });
 }

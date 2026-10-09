@@ -148,7 +148,7 @@ class Classifier(
          * Bump when scan logic changes in ways the rule list doesn't capture
          * (e.g. which messages are read, how senders are matched).
          */
-        const val SCAN_LOGIC_VERSION = 4
+        const val SCAN_LOGIC_VERSION = 5 // 5: RCS group IDs aren't senders
 
         private val P = setOf(Category.POLITICAL)
         private val C = setOf(Category.COMMERCIAL)

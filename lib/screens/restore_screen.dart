@@ -100,7 +100,7 @@ class _RestoreScreenState extends State<RestoreScreen> {
                 : _selected.addAll(ids);
           }),
           title: Text(
-            sender.isEmpty ? 'Unknown sender' : sender,
+            displaySender(sender),
             style: theme.textTheme.titleMedium,
           ),
           subtitle: Text('Restore $checked of ${plural(ids.length, 'text')}'),

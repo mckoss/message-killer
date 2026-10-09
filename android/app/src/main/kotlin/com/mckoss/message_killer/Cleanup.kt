@@ -169,7 +169,7 @@ object Cleanup {
 
     /**
      * Received texts older than [PRUNE_AGE_DAYS] in conversations you never sent
-     * anything to. Never contacts, allowed senders, or group chats (unknown sender).
+     * anything to. Never contacts, allowed senders, or group chats (unknown sender or an RCS group ID).
      */
     private fun pruneCandidates(context: Context): List<SmsInbox.Message> {
         val settings = AppSettings(context)
@@ -191,7 +191,9 @@ object Cleanup {
         val replied = SmsInbox.threadsYouReplied(context)
         val old = SmsInbox.readInbox(context, beforeMillis = cutoff, includePictureOnly = true) { progress = it }
         progress = "Checking ${old.size} messages…"
-        return old.filter { it.threadId !in replied && it.address.isNotEmpty() }
+        // Never group chats: no sender, or an RCS group ID (your RCS replies
+        // aren't stored where threadsYouReplied can see them).
+        return old.filter { it.threadId !in replied && it.address.isNotEmpty() && !SmsInbox.isGroupAddress(it.address) }
             .also { pruneCache = now to it; progress = "" }
     }
 

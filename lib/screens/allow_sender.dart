@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../format.dart';
 import '../native_api.dart';
 
 /// Confirms, then allow-lists the entry's sender. Texts from that sender that
@@ -10,7 +11,11 @@ Future<bool> confirmAllowSender(
   NativeApi api,
   SpamEntry entry,
 ) async {
-  final sender = entry.sender.isEmpty ? 'this sender' : entry.sender;
+  final sender = entry.sender.isEmpty
+      ? 'this sender'
+      : (displaySender(entry.sender) == entry.sender
+            ? entry.sender
+            : 'this ${displaySender(entry.sender)}');
   final pending = entry.status == SpamStatus.pendingDelete;
   final confirmed = await showDialog<bool>(
     context: context,

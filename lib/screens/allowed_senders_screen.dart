@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../format.dart';
 import '../native_api.dart';
 import 'loading_view.dart';
 
@@ -91,7 +92,7 @@ class _AllowedSendersScreenState extends State<AllowedSendersScreen> {
                 for (final sender in senders)
                   ListTile(
                     leading: const Icon(Icons.verified_user_outlined),
-                    title: Text(sender),
+                    title: Text(displaySender(sender)),
                     trailing: IconButton(
                       tooltip: 'Remove $sender',
                       icon: const Icon(Icons.delete_outline),

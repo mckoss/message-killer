@@ -29,6 +29,9 @@ object SmsInbox {
 
     fun mmsId(rowId: Long) = -rowId
 
+    /** RCS group-chat IDs ("d4vt…@rcs.google.com") and other non-phone addresses. */
+    fun isGroupAddress(address: String) = '@' in address
+
     /**
      * Reads received texts and picture messages.
      * [sinceMillis]: only messages received after this time (0 = everything).
@@ -197,7 +200,11 @@ object SmsInbox {
         )?.use { c ->
             while (c.moveToNext()) {
                 val ids = (c.getString(1) ?: "").trim().split(' ').filter { it.isNotEmpty() }
-                if (ids.size == 1) addresses[ids[0].toLongOrNull()]?.let { senders[c.getLong(0)] = it }
+                // An RCS group chat is stored with one "recipient": the group's ID
+                // ("…@rcs.google.com"), not a person. Leave those out like groups.
+                if (ids.size == 1) {
+                    addresses[ids[0].toLongOrNull()]?.takeIf { !isGroupAddress(it) }?.let { senders[c.getLong(0)] = it }
+                }
             }
         } ?: return null
         senders

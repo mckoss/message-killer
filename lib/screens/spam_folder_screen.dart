@@ -165,7 +165,7 @@ class _SpamFolderScreenState extends State<SpamFolderScreen> {
                   return ListTile(
                     leading: Icon(_statusIcon(entry.status)),
                     title: Text(
-                      entry.sender.isEmpty ? 'Unknown sender' : entry.sender,
+                      displaySender(entry.sender),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -202,7 +202,7 @@ class SpamEntryScreen extends StatelessWidget {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(entry.sender.isEmpty ? 'Unknown sender' : entry.sender),
+        title: Text(displaySender(entry.sender)),
         actions: [
           IconButton(
             tooltip: 'Copy text',
