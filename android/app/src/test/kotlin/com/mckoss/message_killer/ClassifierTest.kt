@@ -76,6 +76,7 @@ class ClassifierTest {
 
     // More political texts that got through (Oct 2026), links shortened.
     private val morePolitical = listOf(
+        "Jane Doe (D) 47%\nJohn Roe (R) 48%\n\nWe are dangerously close to winning FL's senate race. Chip in even \$1 https://xx4fl.com/l/xxxx\n\nJane\nEnd2End",
         "Final hours to chip in before the deadline! Donate now",
         "Alex, you've been selected for a 1-min survey. Your input directly shapes Democratic strategy. Will you take it? http://s.alchemer.com/s3/xxxx?source=XXXX\n-PP,\nStop to End",
         "Hi Alex, I'm Sam w/ Contest Every Race. We're looking for folks in King County to help their local Dems. Want more info?\nStop to End",
