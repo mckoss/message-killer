@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
  * removed from the inbox. Entries are kept for [RETENTION_DAYS] days.
  */
 class SpamStore private constructor(context: Context) :
-    SQLiteOpenHelper(context.applicationContext, "spam.db", null, 6) {
+    SQLiteOpenHelper(context.applicationContext, "spam.db", null, 7) {
 
     data class Entry(
         val id: Long,
@@ -45,9 +45,21 @@ class SpamStore private constructor(context: Context) :
     }
 
     override fun onCreate(db: SQLiteDatabase) {
+        createSpamTable(db, "spam")
+        createIndexes(db)
+        createTainted(db)
+        createHistory(db)
+    }
+
+    /**
+     * sms_id is the inbox row id (negative for picture messages). It is NOT
+     * unique: Android reuses the ids of deleted texts, so after the newest spam
+     * is deleted the next texts to arrive get the same ids back.
+     */
+    private fun createSpamTable(db: SQLiteDatabase, name: String) {
         db.execSQL(
             """
-            CREATE TABLE spam (
+            CREATE TABLE $name (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               source TEXT NOT NULL,
               status TEXT NOT NULL,
@@ -57,22 +69,28 @@ class SpamStore private constructor(context: Context) :
               filed_at INTEGER NOT NULL,
               score REAL NOT NULL,
               reasons TEXT NOT NULL,
-              sms_id INTEGER UNIQUE,
+              sms_id INTEGER,
               category TEXT NOT NULL DEFAULT 'political',
               confirmed INTEGER NOT NULL DEFAULT 0
             )
             """.trimIndent()
         )
-        db.execSQL("CREATE INDEX spam_time ON spam(message_time)")
-        createIndexes(db)
-        createTainted(db)
-        createHistory(db)
     }
 
-    /** For pending-delete lookups and the 90-day purge (both ran full table scans). */
+    /** For pending-delete lookups, inbox-id lookups and the 90-day purge. */
     private fun createIndexes(db: SQLiteDatabase) {
+        db.execSQL("CREATE INDEX IF NOT EXISTS spam_time ON spam(message_time)")
         db.execSQL("CREATE INDEX IF NOT EXISTS spam_status ON spam(status)")
         db.execSQL("CREATE INDEX IF NOT EXISTS spam_filed ON spam(filed_at)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS spam_sms_id ON spam(sms_id)")
+    }
+
+    /** SQLite can't drop a UNIQUE constraint: rebuild the table without it. */
+    private fun dropSmsIdUnique(db: SQLiteDatabase) {
+        createSpamTable(db, "spam_new")
+        db.execSQL("INSERT INTO spam_new ($SPAM_COLUMNS) SELECT $SPAM_COLUMNS FROM spam")
+        db.execSQL("DROP TABLE spam")
+        db.execSQL("ALTER TABLE spam_new RENAME TO spam")
     }
 
     /**
@@ -106,7 +124,8 @@ class SpamStore private constructor(context: Context) :
             db.execSQL("ALTER TABLE spam ADD COLUMN confirmed INTEGER NOT NULL DEFAULT 0")
         }
         if (oldVersion in 1..4) createHistory(db)
-        if (oldVersion in 1..5) createIndexes(db)
+        if (oldVersion in 1..6) dropSmsIdUnique(db)
+        createIndexes(db)
     }
 
     /**
@@ -244,9 +263,7 @@ class SpamStore private constructor(context: Context) :
     @Synchronized
     fun fileFromInbox(sms: SmsInbox.Message, result: Classifier.Result): Boolean {
         val db = writableDatabase
-        db.rawQuery("SELECT id FROM spam WHERE sms_id = ?", arrayOf(sms.id.toString())).use {
-            if (it.moveToFirst()) return false
-        }
+        if (isFiled(sms)) return false
         val match = findSimilar(sms.body, sms.date, requireNoSmsId = true)
         if (match != null) {
             changed()
@@ -256,6 +273,7 @@ class SpamStore private constructor(context: Context) :
                     put("sms_id", sms.id)
                     put("status", STATUS_PENDING)
                     put("sender", sms.address)
+                    put("message_time", sms.date) // the notification's time was approximate
                 },
                 "id = ?",
                 arrayOf(match.toString()),
@@ -265,6 +283,17 @@ class SpamStore private constructor(context: Context) :
         }
         return true
     }
+
+    /**
+     * Is this inbox row already in the Spam folder? A live (not yet deleted)
+     * entry with the same id is the same text. A deleted entry only counts if
+     * the time matches too: Android reuses deleted texts' ids for new ones.
+     */
+    private fun isFiled(sms: SmsInbox.Message): Boolean =
+        readableDatabase.rawQuery(
+            "SELECT 1 FROM spam WHERE sms_id = ? AND (status != ? OR message_time = ?) LIMIT 1",
+            arrayOf(sms.id.toString(), STATUS_DELETED, sms.date.toString()),
+        ).use { it.moveToFirst() }
 
     /** Files an SMS that arrived while we were the default app and never reached the inbox. */
     @Synchronized
@@ -290,7 +319,9 @@ class SpamStore private constructor(context: Context) :
     @Synchronized
     fun markDeleted(smsIds: Collection<Long>) = inTransaction {
         val values = ContentValues().apply { put("status", STATUS_DELETED) }
-        forEachChunk(smsIds) { where, args -> writableDatabase.update("spam", values, "sms_id $where", args) }
+        forEachChunk(smsIds) { where, args ->
+            writableDatabase.update("spam", values, "status = ? AND sms_id $where", arrayOf(STATUS_PENDING) + args)
+        }
     }
 
     /** Runs [block] with "IN (?, ?, …)" and its arguments for each chunk of [ids]. */
@@ -368,9 +399,7 @@ class SpamStore private constructor(context: Context) :
      */
     @Synchronized
     fun filePruned(sms: SmsInbox.Message): Long {
-        val exists = writableDatabase.rawQuery("SELECT id FROM spam WHERE sms_id = ?", arrayOf(sms.id.toString()))
-            .use { it.moveToFirst() }
-        if (!exists) {
+        if (!isFiled(sms)) {
             insert(
                 SOURCE_PRUNE, STATUS_PENDING, sms.address, sms.body, sms.date,
                 Classifier.Result(0.0, listOf(PRUNE_REASON), null), sms.id, category = CATEGORY_PRUNED,
@@ -456,6 +485,8 @@ class SpamStore private constructor(context: Context) :
         const val CATEGORY_PRUNED = "pruned"
         const val PRUNE_REASON = "Older than 90 days, in a conversation you never replied to"
         private const val MATCH_WINDOW_MS = 15 * 60 * 1000L
+        private const val SPAM_COLUMNS =
+            "id, source, status, sender, body, message_time, filed_at, score, reasons, sms_id, category, confirmed"
 
         @Volatile private var instance: SpamStore? = null
 
