@@ -55,6 +55,8 @@ class ClassifierTest {
     private val normal = listOf(
         "Hey, are we still on for dinner tonight?",
         "Did you get my message about dinner?",
+        "Can you endorse me on LinkedIn for project management?",
+        "We're looking for 2 people to join the carpool on Monday",
         "Don't miss dinner tonight, I'm making lasagna",
         "Reminder: your appointment is today at 3pm. Reply C to confirm",
         "Your prescription is ready. Pick up today before 6pm",
@@ -76,6 +78,7 @@ class ClassifierTest {
 
     // More political texts that got through (Oct 2026), links shortened.
     private val morePolitical = listOf(
+        "John Roe is humbly and respectfully asking if you can personally endorse his campaign. We're looking for 20,000 people to add their names before the Election on November 3rd. It's a small act but it shows how strong this team really is. Link here: \n\nhttps://johnroeaz.com/xxxx\n\nStop to End",
         "Jane Doe (D) 47%\nJohn Roe (R) 48%\n\nWe are dangerously close to winning FL's senate race. Chip in even \$1 https://xx4fl.com/l/xxxx\n\nJane\nEnd2End",
         "Final hours to chip in before the deadline! Donate now",
         "Alex, you've been selected for a 1-min survey. Your input directly shapes Democratic strategy. Will you take it? http://s.alchemer.com/s3/xxxx?source=XXXX\n-PP,\nStop to End",
