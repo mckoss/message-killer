@@ -122,13 +122,16 @@ object Cleanup {
         val tainted = store.taintedSenders()
 
         var filed = 0
+        val finalResults = ArrayList<Classifier.Result>(messages.size)
         store.inTransaction {
             messages.forEachIndexed { i, sms ->
                 if (i % 250 == 0) progress = "Saving to the Spam folder… ${i + 1} of ${messages.size}"
                 val result = byContent.withTaint(results[i], sms.address, tainted)
+                finalResults += result
                 if (result.isSpam && store.fileFromInbox(sms, result)) filed++
             }
         }
+        ScanDebug.record(context, full, messages.size, messages, finalResults)
         settings.lastScanAt = startedAt
         settings.lastScanFingerprint = fingerprint
         lastStats = ScanStats(messages.count { !it.isMms }, messages.count { it.isMms }, full)

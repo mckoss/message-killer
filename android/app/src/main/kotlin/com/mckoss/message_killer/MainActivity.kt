@@ -75,6 +75,11 @@ class MainActivity : FlutterActivity() {
                     "full" to (stats?.full ?: true),
                 )
             }
+            "lastScanDebug" -> background(result) { ScanDebug.read(this) }
+            "exportScanDebug" -> background(result) {
+                val r = ScanDebug.export(this)
+                mapOf("count" to r.count, "files" to r.files)
+            }
             "deletePending" -> background(result) {
                 val (deleted, failed) = Cleanup.deletePending(this)
                 if (failed == 0) Notifications.cancelCleanupReady(this)

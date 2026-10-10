@@ -46,6 +46,9 @@ RCS chat keeps working.
   settings → Your names* (your phone's profile name is offered). A text from
   an unknown number that greets you by any other name ("Hi Anna", "Diane are
   u getting this") is filtered as a scam.
+- **Last scan details** (*Filter settings*): the newest 50 texts the last
+  scan checked, with each one's score and the rules that fired; exportable
+  as JSON for analysis.
 - **Contacts are never filtered:** with Contacts access, texts from anyone in
   your contacts (including synced Google contacts) are never silenced or
   deleted. Other allowed senders can be viewed and removed under *Filter

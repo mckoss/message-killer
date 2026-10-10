@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/services.dart';
 
 import 'format.dart';
@@ -374,6 +376,81 @@ class ExportResult {
   final List<String> files;
 }
 
+/// One text the last scan looked at, with its scores (the debug page).
+class ScanRow {
+  const ScanRow({
+    required this.sender,
+    required this.time,
+    required this.body,
+    required this.spam,
+    required this.category,
+    required this.score,
+    required this.scores,
+    required this.reasons,
+  });
+
+  final String sender;
+  final DateTime time;
+  final String body;
+  final bool spam;
+  final SpamCategory? category;
+  final double score;
+  final Map<SpamCategory, double> scores;
+  final Map<SpamCategory, List<String>> reasons;
+
+  Confidence? get confidence => spam ? Confidence.ofScore(score) : null;
+
+  factory ScanRow.fromJson(Map<String, Object?> j) => ScanRow(
+    sender: j['sender'] as String? ?? '',
+    time: DateTime.fromMillisecondsSinceEpoch(
+      (j['time'] as num?)?.toInt() ?? 0,
+    ),
+    body: j['body'] as String? ?? '',
+    spam: j['spam'] == true,
+    category: SpamCategory.fromKey(j['category']),
+    score: (j['score'] as num?)?.toDouble() ?? 0,
+    scores: {
+      for (final e in ((j['scores'] as Map?) ?? const {}).entries)
+        ?SpamCategory.fromKey(e.key): (e.value as num).toDouble(),
+    },
+    reasons: {
+      for (final e in ((j['reasons'] as Map?) ?? const {}).entries)
+        ?SpamCategory.fromKey(e.key): (e.value as List).cast<String>(),
+    },
+  );
+}
+
+/// The last scan's newest texts and verdicts.
+class ScanDebug {
+  const ScanDebug({
+    required this.scanAt,
+    required this.full,
+    required this.scanned,
+    required this.rows,
+  });
+
+  final DateTime scanAt;
+  final bool full;
+  final int scanned;
+  final List<ScanRow> rows;
+
+  static ScanDebug? fromJsonString(String? json) {
+    if (json == null || json.isEmpty) return null;
+    final j = jsonDecode(json) as Map<String, Object?>;
+    return ScanDebug(
+      scanAt: DateTime.fromMillisecondsSinceEpoch(
+        (j['scanAt'] as num?)?.toInt() ?? 0,
+      ),
+      full: j['full'] == true,
+      scanned: (j['scanned'] as num?)?.toInt() ?? 0,
+      rows: [
+        for (final r in (j['rows'] as List? ?? const []))
+          ScanRow.fromJson((r as Map).cast<String, Object?>()),
+      ],
+    );
+  }
+}
+
 /// Everything the UI needs from the Android side. Abstract so tests can fake it.
 abstract class NativeApi {
   Future<AppStatus> getStatus();
@@ -443,6 +520,12 @@ abstract class NativeApi {
   /// Spam per month and category, as far back as the Spam folder and its
   /// history go (oldest first, empty months included).
   Future<List<MonthStats>> monthlyStats();
+
+  /// The newest texts the last scan looked at, with scores (null: no scan yet).
+  Future<ScanDebug?> lastScanDebug();
+
+  /// Saves that as JSON to Downloads.
+  Future<ExportResult> exportScanDebug();
 }
 
 class MethodChannelNativeApi implements NativeApi {
@@ -632,6 +715,20 @@ class MethodChannelNativeApi implements NativeApi {
     final rows = await _channel.invokeMethod<List<Object?>>('monthlyStats');
     return MonthStats.fromRows(
       (rows ?? const []).cast<Map<Object?, Object?>>(),
+    );
+  }
+
+  @override
+  Future<ScanDebug?> lastScanDebug() async => ScanDebug.fromJsonString(
+    await _channel.invokeMethod<String>('lastScanDebug'),
+  );
+
+  @override
+  Future<ExportResult> exportScanDebug() async {
+    final m = await _map('exportScanDebug');
+    return ExportResult(
+      count: (m['count'] as num?)?.toInt() ?? 0,
+      files: ((m['files'] as List?) ?? const []).cast<String>(),
     );
   }
 }

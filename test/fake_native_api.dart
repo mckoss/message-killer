@@ -258,6 +258,21 @@ class FakeNativeApi implements NativeApi {
 
   List<Map<Object?, Object?>> monthRows = [];
 
+  /// JSON as the native side saves it.
+  String? scanDebugJson;
+
+  @override
+  Future<ScanDebug?> lastScanDebug() async {
+    calls.add('lastScanDebug');
+    return ScanDebug.fromJsonString(scanDebugJson);
+  }
+
+  @override
+  Future<ExportResult> exportScanDebug() async {
+    calls.add('exportScanDebug');
+    return const ExportResult(count: 2, files: ['scan.json']);
+  }
+
   @override
   Future<List<MonthStats>> monthlyStats() async {
     calls.add('monthlyStats');

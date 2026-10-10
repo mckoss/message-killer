@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:message_killer/main.dart';
@@ -629,5 +631,64 @@ void main() {
     expect(find.text('Newest first'), findsOneWidget);
     expect(y('Likely newest'), lessThan(y('Unsure new')));
     expect(y('Certain old'), lessThan(y('Unsure old')));
+  });
+
+  testWidgets('last scan details: rows with scores, export', (tester) async {
+    final api = FakeNativeApi()
+      ..scanDebugJson = jsonEncode({
+        'scanAt': DateTime(2026, 10, 10, 9).millisecondsSinceEpoch,
+        'full': true,
+        'scanned': 1234,
+        'rows': [
+          {
+            'sender': '+12065550101',
+            'time': DateTime(2026, 10, 10, 8).millisecondsSinceEpoch,
+            'body': 'Chip in \$5 before midnight',
+            'spam': true,
+            'category': 'political',
+            'score': 5.0,
+            'scores': {'political': 5.0, 'commercial': 1.5},
+            'reasons': {
+              'political': ['Asks for a donation', 'Fundraising deadline'],
+              'commercial': ['Bulk-text opt-out footer'],
+            },
+          },
+          {
+            'sender': '+12065550102',
+            'time': DateTime(2026, 10, 10, 7).millisecondsSinceEpoch,
+            'body': 'See you at 6',
+            'spam': false,
+            'category': null,
+            'score': 0.0,
+            'scores': {},
+            'reasons': {},
+          },
+        ],
+      });
+    await tester.pumpWidget(MessageKillerApp(api: api));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Filter settings'));
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.text('Last scan details'));
+    await tester.tap(find.text('Last scan details'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Full scan on'), findsOneWidget);
+    expect(find.textContaining('checked 1234 texts'), findsOneWidget);
+    expect(find.textContaining('Political 5.0'), findsOneWidget);
+    expect(find.textContaining('Not spam (0.0)'), findsOneWidget);
+
+    await tester.tap(find.text('+12065550101'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining(
+        'Political 5.0: Asks for a donation; Fundraising deadline',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byTooltip('Export as JSON'));
+    await tester.pumpAndSettle();
+    expect(api.calls, contains('exportScanDebug'));
   });
 }

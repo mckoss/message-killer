@@ -5,6 +5,7 @@ import 'loading_view.dart';
 import 'allowed_senders_screen.dart';
 import 'cleanup_flow.dart';
 import 'flagged_senders_screen.dart';
+import 'scan_debug_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.api});
@@ -131,6 +132,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       );
                       await _load();
                     },
+                  ),
+                ),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.bug_report_outlined),
+                    title: const Text('Last scan details'),
+                    subtitle: const Text(
+                      'The newest 50 texts the last scan checked, with their scores; export as JSON',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ScanDebugScreen(api: widget.api),
+                      ),
+                    ),
                   ),
                 ),
                 Card(

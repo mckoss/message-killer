@@ -122,7 +122,7 @@ object SpamExporter {
         return Result(stats.size, listOf("$base.json", "$base.csv"))
     }
 
-    private fun write(context: Context, name: String, mime: String, content: String) {
+    fun write(context: Context, name: String, mime: String, content: String) {
         val resolver = context.contentResolver
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, name)
