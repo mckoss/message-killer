@@ -245,7 +245,7 @@ class Classifier(
         }
 
         private const val FOOTER =
-            """(reply|replying|txt|text|texting)\s+stop|opt[-\s]?out\s+at\s+any\s+time|stop\s*(2|to)\s*(end|quit|stop|opt[-\s]?out|unsub\w*)|stop2end|stop=end|\bend2end\b"""
+            """(reply|replying|txt|text|texting)\s+stop|opt[-\s]?out\s+at\s+any\s+time|stop\s*(all)?\s*(2|to)\s*(end|quit|stop|opt[-\s]?out|unsub\w*)|stop2end|stop=end|\bend2end\b"""
 
         /** False-urgency phrases, shared by the "urgency plus …" rules. */
         private const val URGENCY = """ends?\s+(tonight|today|soon|sunday|at\s+midnight)|today\s+only|last\s+(chance|call)|limited[-\s]time|hurry|don'?t\s+miss|(expires?|expiring)\s+(tomorrow|today|tonight|soon|at\s+midnight|in\s+\d+\s+(hours?|days?))|final\s+hours|only\s+\d+\s+left|selling\s+(out|fast)|while\s+supplies\s+last|before\s+(it'?s|they'?re)\s+gone|before\s+it\s+goes|this\s+(month|week|weekend)\s+only|24\s+hours\s+only"""
@@ -311,8 +311,11 @@ class Classifier(
             // Opinion-survey solicitations: "We are conducting a study on local issues…
             // your response is voluntary and confidential… receive studies in the future?"
             Rule("Survey / opinion-poll solicitation", 2.0,
-                phrase("""conducting\s+(a|an|our)\s+(\w+\s+)?(study|survey|poll)|\d+[-\s]?min(ute)?\s+(survey|poll)|(selected|chosen)\s+for\s+(a|an|our)\s+(\S+\s+)?(survey|poll)|your\s+(input|opinion|voice)\s+(directly\s+)?(shapes|matters|counts)|research[-\s]polls?|(your\s+)?(response|answers?|participation)\s+(is|are)\s+(voluntary|anonymous|confidential)|kept\s+(strictly\s+)?confidential|receive\s+(future\s+)?(studies|surveys|polls)|(studies|surveys|polls)\s+in\s+the\s+future|(local|community)\s+issues|what\s+you\s+would\s+like\s+to\s+see\s+changed"""), P),
+                phrase("""conducting\s+(a|an|our)\s+(\w+\s+)?(study|survey|poll)|share\s+your\s+(opinions?|views|thoughts)|(your\s+)?opinions?\s+on\s+(\w+\s+){0,2}issues|(policy|opinion)\s+polling|opinion\s+research|last\s+chance\s+to\s+(share|take|complete|answer)|\d+[-\s]?min(ute)?\s+(survey|poll)|(selected|chosen)\s+for\s+(a|an|our)\s+(\S+\s+)?(survey|poll)|your\s+(input|opinion|voice)\s+(directly\s+)?(shapes|matters|counts)|research[-\s]polls?|(your\s+)?(response|answers?|participation)\s+(is|are)\s+(voluntary|anonymous|confidential)|kept\s+(strictly\s+)?confidential|receive\s+(future\s+)?(studies|surveys|polls)|(studies|surveys|polls)\s+in\s+the\s+future|(local|community)\s+issues|what\s+you\s+would\s+like\s+to\s+see\s+changed"""), P),
 
+            // Online survey platforms, where opinion-poll texts send you.
+            Rule("Survey-platform link", 2.0,
+                Regex("""\b(research\.net|surveymonkey\.com|alchemer\.com|qualtrics\.com|typeform\.com|pollfish\.com|yougov\.com|survey\.\w+\.(com|org))\b""", RegexOption.IGNORE_CASE), P),
             // Peer-to-peer texting platforms use tracking links like "site.org/l/uEel5Z".
             Rule("Campaign-style tracking link", 0.5,
                 Regex("""\b[\w-]+\.(org|com|us|io|co|net)/l/\w{5,}""", RegexOption.IGNORE_CASE), P),
