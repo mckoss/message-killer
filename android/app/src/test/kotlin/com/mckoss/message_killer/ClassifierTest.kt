@@ -55,6 +55,8 @@ class ClassifierTest {
     private val normal = listOf(
         "Hey, are we still on for dinner tonight?",
         "Did you get my message about dinner?",
+        "I have a free copy of the book if you want it",
+        "Get your free flu shot at the pharmacy this week",
         "Can you get me a quote for the kitchen remodel? Thanks",
         "The roof repair guy is coming Tuesday at 9",
         "Can you share your thoughts on the proposal by Friday?",
@@ -148,6 +150,7 @@ class ClassifierTest {
         "Your 20% coupon expires tonight. Shop now at example.com",
         "Last chance! Ends at midnight. Add to cart and use code SAVE",
         "Hey Alex, this is Cindy with a local roofing group here in WA. We have huge discounts on roof repairs and replacements. Would you like a quote?",
+        "Claim your FREE DVD box set of the online course from Example College: \"The Genesis Story\" >> xxxxxx.org/b/xxxxxx\n\nStopToEnd",
         "Hey Alex, Rob at GV Solutions. Ready to simplify the sale of 123 Main Cir? We're experts in fair dealings. Ready for a chat?",
     )
 

@@ -318,7 +318,7 @@ class Classifier(
                 Regex("""\b(research\.net|surveymonkey\.com|alchemer\.com|qualtrics\.com|typeform\.com|pollfish\.com|yougov\.com|survey\.\w+\.(com|org))\b""", RegexOption.IGNORE_CASE), P),
             // Peer-to-peer texting platforms use tracking links like "site.org/l/uEel5Z".
             Rule("Campaign-style tracking link", 0.5,
-                Regex("""\b[\w-]+\.(org|com|us|io|co|net)/l/\w{5,}""", RegexOption.IGNORE_CASE), P),
+                Regex("""\b[\w-]+\.(org|com|us|io|co|net)/[a-z]/\w{5,}""", RegexOption.IGNORE_CASE), P),
 
             // Peer-to-peer texts open with the sender introducing themselves:
             // "It's Sherrod Brown." / "Amy Klobuchar here." / "Hi, I am Mia from US Speaks."
@@ -355,6 +355,9 @@ class Classifier(
                 Regex("""\b(pscrpt\.io|attn\.tv|mcsms\.io|klclick\d?\.com|kmail-lists\.com|txt\.so|i\.cvs\.com)\b""", RegexOption.IGNORE_CASE), C),
             Rule("New-product pitch", 1.0,
                 phrase("""brand\s+new|new\s+(arrivals?|drops?|collection|styles?|colou?rs?|flavors?|releases?)|just\s+(dropped|landed|arrived|launched)|(fall|spring|summer|winter|holiday)\s+(collection|lineup|line|edit)|for\s+(fall|spring|summer|winter)"""), C),
+            // "Claim your FREE DVD box set", "get your free guide": giveaway bait.
+            Rule("Free-giveaway bait", 2.0,
+                phrase("""claim\s+your\s+(free\s+)?(dvd|book|guide|course|box\s+set|copy|t-?shirt|hat|sticker|sample|kit|bundle|poster|flag|calendar)|(free|complimentary)\s+(dvd|book|guide|course|box\s+set|copy|t-?shirt|hat|sticker|sample|kit|bundle|poster|flag|calendar|gift\s+with)|(get|grab|order)\s+your\s+free\s+\w+|(100%|totally|absolutely)\s+free"""), C),
             // Cold home-services pitches: "local roofing group… Would you like a quote?"
             Rule("Unsolicited service pitch", 2.0,
                 phrase("""(would|do)\s+you\s+(like|want)\s+(a\s+)?(free\s+)?(quote|estimate)|free\s+(quote|estimate|inspection|consultation)|roof(ing)?\s+(repairs?|replacements?|group|company|companies|inspection|contractor)|solar\s+(panels?|quote|install\w*|program)|hvac|gutter\s+(cleaning|guards?|repair)|siding\s+(repair|replacement)|windows?\s+(and\s+doors?\s+)?(replacement|installation)|pest\s+control|lawn\s+(care|service)|tree\s+(service|removal)|home\s+(security|warranty|improvement)\s+(system|plan|quote|offer|company)|(auto|car|vehicle)\s+warranty|duct\s+cleaning|bath(room)?\s+remodel"""), C),
