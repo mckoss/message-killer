@@ -70,8 +70,11 @@ RCS chat keeps working.
    platforms (ActBlue, WinRed), donation asks ("chip in", "2X-matching every
    gift"), deadline pressure ("end-of-quarter deadline"), politicians
    introducing themselves ("It's Sherrod Brown."), party, election and
-   office terms, and bulk-text "Reply STOP" footers. A text is filtered at a
-   score of 3. Verification codes are never filtered. You can add your own
+   office terms, and bulk-text "Reply STOP" / "Stop2End" footers. A text is
+   filtered at a score of 3; from a sender who isn't a contact, an opt-out
+   footer alone is enough (no friend or contractor writes one). Verification
+   codes, bank alerts, prescriptions, appointments and service notices
+   (outages, flights, school closures) are never filtered. You can add your own
    keywords and allowed senders. Nothing leaves the phone.
 2. **Silence (live filter):** a notification listener reads incoming message
    notifications. If a text is political, it cancels the notification and

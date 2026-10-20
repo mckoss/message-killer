@@ -370,10 +370,11 @@ class Classifier(
             Rule("Asks you to save a contact card", 1.0,
                 phrase("""save\s+(this|our)\s+(new\s+)?(contact|number)|contact\s+card"""), C),
 
-            // Transactional notices (e.g. pharmacy pickups) are never treated as
-            // promotions or political, even from a flagged sender.
+            // Transactional and service notices (pharmacy pickups, orders, appointments,
+            // outages, flights, school closures) are never treated as promotions or
+            // political, even from a flagged sender or with an opt-out footer.
             Rule("Looks like a transactional notice (prescription, order, appointment)", -4.0,
-                phrase("""prescriptions?|rx|refills?|ready\s+for\s+pick\s*-?\s*up|pharmacy\s+(order|hours)|your\s+(\w+\s+){0,2}appointment|appointment\s+(reminder|confirmed|confirmation|is\s+(on|at|scheduled|tomorrow|today)|tomorrow|today)|reminder\s+of\s+your\s+appointment|order\s+(#|number|has\s+shipped|is\s+on\s+its\s+way)|has\s+shipped|out\s+for\s+delivery|confirmation\s+(number|code)"""), P + C),
+                phrase("""prescriptions?|rx|refills?|ready\s+for\s+pick\s*-?\s*up|pharmacy\s+(order|hours)|your\s+(\w+\s+){0,2}appointment|appointment\s+(reminder|confirmed|confirmation|is\s+(on|at|scheduled|tomorrow|today)|tomorrow|today)|reminder\s+of\s+your\s+appointment|order\s+(#|number|has\s+shipped|is\s+on\s+its\s+way)|has\s+shipped|out\s+for\s+delivery|confirmation\s+(number|code)|(power|service|water|gas|internet)\s+(is|has\s+been|was|will\s+be)\s+(restored|out|interrupted|shut\s+off)|outage|your\s+(flight|reservation|booking|ride|table|driver|technician)\s+(is|has|will|to)|boarding|gate\s+(change|\w?\d+)|schools?\s+(are\s+|is\s+|will\s+be\s+)?(closed|closing|delayed|cancell?ed)|(weather|flood|wind|emergency|amber)\s+(alert|warning|advisory)|(store|branch|office|center|financial\s+center)s?\s+(in\s+your\s+area\s+)?(may\s+be\s+|are\s+|is\s+|will\s+be\s+)?(temporarily\s+)?(closed|closing)|(store|branch|office|holiday)\s+hours|hours\s+(may\s+be\s+|have\s+|are\s+)?(modified|changed)|(table|order|car|vehicle|glasses|photos?|prints?|food|pizza|package|rental)\s+(at\s+\S+\s+)?(is|are)\s+ready|two[-\s]?factor|sign[-\s]?in\s+code"""), P + C),
 
             // ----------------------------------------------------- phishing / scams
             Rule("Account problem bait", 2.0,
@@ -403,10 +404,13 @@ class Classifier(
             // ------------------------------------------------------------- shared
             Rule("Link shortener", 0.5,
                 Regex("""\b(bit\.ly|tinyurl\.com|rb\.gy|t\.co|ow\.ly|wnrd\.us|is\.gd|cutt\.ly)/""", RegexOption.IGNORE_CASE), ALL),
-            // Mass-texting opt-out footer ("Stop2End"). A strong sign of bulk texts, but
-            // banks and pharmacies use it too, so it can't decide alone; the safety
-            // rules below cover those.
-            Rule("Bulk-text opt-out footer", 1.5, Regex(FOOTER, RegexOption.IGNORE_CASE), P + C),
+            // Mass-texting opt-out footer ("Stop2End", "Reply STOP to opt out"). No
+            // friend, contractor or doctor's office writes one, so from a sender who
+            // isn't a contact it is decisive on its own (as commercial; one political
+            // hint tips it to political). Banks, pharmacies and service notices use
+            // it too: the safety rules below outweigh it for those.
+            Rule("Bulk-text opt-out footer", THRESHOLD, Regex(FOOTER, RegexOption.IGNORE_CASE), C),
+            Rule("Bulk-text opt-out footer", THRESHOLD - 1.0, Regex(FOOTER, RegexOption.IGNORE_CASE), P),
 
             // Safety valve: bank / card alerts are never political or promotional, even
             // when the merchant is ActBlue ("Credit card charge $515.00 … ACTBLUE").

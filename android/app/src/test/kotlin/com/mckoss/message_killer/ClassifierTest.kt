@@ -120,6 +120,10 @@ class ClassifierTest {
         "BofA: Financial centers in your area may be temporarily closed or hours may be modified. For latest info, visit our website. TextSTOPtoStop",
         "Reminder: your dentist appointment is Tuesday at 3pm. Reply C to confirm or STOP to opt out",
         "CVS Pharmacy: Store hours have changed for the holiday. Reply STOP to opt out",
+        "PSE: Power is restored at 123 MAIN ST. The cause was equipment failure. Reply STOP to end",
+        "Alaska Airlines: Your flight 123 to SEA is boarding at gate B4. Reply STOP to opt out",
+        "Seattle Public Schools: All schools are closed tomorrow due to snow. Reply STOP to end",
+        "Your table at Canlis is ready. Reply STOP to opt out",
     )
 
     @Test
@@ -153,6 +157,8 @@ class ClassifierTest {
         "Last chance! Ends at midnight. Add to cart and use code SAVE",
         "Hey Alex, this is Cindy with a local roofing group here in WA. We have huge discounts on roof repairs and replacements. Would you like a quote?",
         "Claim your FREE DVD box set of the online course from Example College: \"The Genesis Story\" >> xxxxxx.org/b/xxxxxx\n\nStopToEnd",
+        "Check out what's new this week: example.com/new\n\nStop2End",
+        "Hey Alex, thanks for being with us this year! Reply STOP to opt out",
         "Hey Alex, Rob at GV Solutions. Ready to simplify the sale of 123 Main Cir? We're experts in fair dealings. Ready for a chat?",
     )
 
