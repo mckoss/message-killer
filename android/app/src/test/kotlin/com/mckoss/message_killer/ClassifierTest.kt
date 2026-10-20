@@ -55,6 +55,8 @@ class ClassifierTest {
     private val normal = listOf(
         "Hey, are we still on for dinner tonight?",
         "Did you get my message about dinner?",
+        "Can you get me a quote for the kitchen remodel? Thanks",
+        "The roof repair guy is coming Tuesday at 9",
         "Can you share your thoughts on the proposal by Friday?",
         "Can you endorse me on LinkedIn for project management?",
         "We're looking for 2 people to join the carpool on Monday",
@@ -145,6 +147,7 @@ class ClassifierTest {
         "Shop Name: Heads up Alex your £12.54 store credit expires tomorrow!\n\nUse this code at checkout before it goes:\nCREDIT-XXXXXXXX \n\nSHOP HERE: https://mcsms.io/xxxx\n\n\nText STOP to opt out",
         "Your 20% coupon expires tonight. Shop now at example.com",
         "Last chance! Ends at midnight. Add to cart and use code SAVE",
+        "Hey Alex, this is Cindy with a local roofing group here in WA. We have huge discounts on roof repairs and replacements. Would you like a quote?",
         "Hey Alex, Rob at GV Solutions. Ready to simplify the sale of 123 Main Cir? We're experts in fair dealings. Ready for a chat?",
     )
 

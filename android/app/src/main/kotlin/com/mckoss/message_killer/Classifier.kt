@@ -341,7 +341,7 @@ class Classifier(
             // promotion also needs real marketing language.
             Rule("Brand-name prefix", 0.5, Regex("""^\s*[\p{L}\p{N}][\p{L}\p{N}&'’. -]{1,30}:\s"""), C),
             Rule("Discount or sale offer", 2.0,
-                phrase("""\d{1,2}%\s+off|store\s+credit|(use|enter|apply)\s+(this|the|your)\s+(promo\s+|discount\s+)?code\s+at\s+checkout|(promo|discount)\s+code|save\s+(an\s+)?(extra\s+|up\s+to\s+)?\d{1,2}%|\$\d+(\.\d\d)?\s+off|bogo|buy\s+one|free\s+shipping|promo\s+code|coupons?|use\s+code\s+\w+|(flash|clearance|semi-annual|black\s+friday|cyber\s+monday|end\s+of\s+season)\s+sale|on\s+sale|send\s+to\s+card"""), C),
+                phrase("""\d{1,2}%\s+off|(huge|big|massive|great|special|exclusive|limited|deep)\s+(discounts?|savings|deals?|offers?)|discounts?\s+on\s+|store\s+credit|(use|enter|apply)\s+(this|the|your)\s+(promo\s+|discount\s+)?code\s+at\s+checkout|(promo|discount)\s+code|save\s+(an\s+)?(extra\s+|up\s+to\s+)?\d{1,2}%|\$\d+(\.\d\d)?\s+off|bogo|buy\s+one|free\s+shipping|promo\s+code|coupons?|use\s+code\s+\w+|(flash|clearance|semi-annual|black\s+friday|cyber\s+monday|end\s+of\s+season)\s+sale|on\s+sale|send\s+to\s+card"""), C),
             Rule("Shopping urgency", 1.0,
                 Regex("""(?i)\b(last\s+call|this\s+(month|week|weekend)\s+only|shop\s+(now|here)|(credit|offer|deal|sale|discount|coupon|points|rewards?)\s+expires?\s+(tomorrow|today|tonight|soon|at\s+midnight)|get\s+'?em|limited\s+time|while\s+supplies\s+last|ends\s+(tonight|today|soon|sunday|midnight)|today\s+only|don'?t\s+miss|new\s+arrivals|back\s+in\s+stock|restock(ed)?|selling\s+(out|fast)|aren'?t\s+making\s+more)"""), C),
             // False urgency plus a push to buy, anywhere in the text (either order):
@@ -355,6 +355,9 @@ class Classifier(
                 Regex("""\b(pscrpt\.io|attn\.tv|mcsms\.io|klclick\d?\.com|kmail-lists\.com|txt\.so|i\.cvs\.com)\b""", RegexOption.IGNORE_CASE), C),
             Rule("New-product pitch", 1.0,
                 phrase("""brand\s+new|new\s+(arrivals?|drops?|collection|styles?|colou?rs?|flavors?|releases?)|just\s+(dropped|landed|arrived|launched)|(fall|spring|summer|winter|holiday)\s+(collection|lineup|line|edit)|for\s+(fall|spring|summer|winter)"""), C),
+            // Cold home-services pitches: "local roofing group… Would you like a quote?"
+            Rule("Unsolicited service pitch", 2.0,
+                phrase("""(would|do)\s+you\s+(like|want)\s+(a\s+)?(free\s+)?(quote|estimate)|free\s+(quote|estimate|inspection|consultation)|roof(ing)?\s+(repairs?|replacements?|group|company|companies|inspection|contractor)|solar\s+(panels?|quote|install\w*|program)|hvac|gutter\s+(cleaning|guards?|repair)|siding\s+(repair|replacement)|windows?\s+(and\s+doors?\s+)?(replacement|installation)|pest\s+control|lawn\s+(care|service)|tree\s+(service|removal)|home\s+(security|warranty|improvement)\s+(system|plan|quote|offer|company)|(auto|car|vehicle)\s+warranty|duct\s+cleaning|bath(room)?\s+remodel"""), C),
             // "Ready to simplify the sale of 500 Elm Cir?", "we buy houses for cash".
             Rule("Unsolicited offer to buy your home", 3.0,
                 phrase("""sale\s+of\s+\d{1,6}\s+\w+(\s+\w+)?\s+(st|street|ave|avenue|cir|circle|rd|road|dr|drive|ln|lane|ct|court|way|blvd|pl|place|ter|terrace|pkwy)|cash\s+offer|interested\s+in\s+selling|(we|i)\s+buy\s+(houses|homes)|(buy|purchase|make\s+an\s+offer\s+on)\s+your\s+(home|house|property|land)"""), C),
