@@ -55,6 +55,7 @@ class ClassifierTest {
     private val normal = listOf(
         "Hey, are we still on for dinner tonight?",
         "Did you get my message about dinner?",
+        "I'm running against the clock on this report, talk later",
         "I have a free copy of the book if you want it",
         "Get your free flu shot at the pharmacy this week",
         "Can you get me a quote for the kitchen remodel? Thanks",
@@ -83,6 +84,7 @@ class ClassifierTest {
 
     // More political texts that got through (Oct 2026), links shortened.
     private val morePolitical = listOf(
+        "I'm running against Speaker Johnson. Help me put up billboards telling folks how he's refused to help Epstein victims. xx4la.com/l/xxxxxx\n\nConrad\nEnd2End",
         "Hi, it's Public Policy Polling! We wanted to give one last chance to share your opinions on WA issues: www.research.net/r/XXXXXXXX?N=0000000000 STOPALL 2 end",
         "John Roe is humbly and respectfully asking if you can personally endorse his campaign. We're looking for 20,000 people to add their names before the Election on November 3rd. It's a small act but it shows how strong this team really is. Link here: \n\nhttps://johnroeaz.com/xxxx\n\nStop to End",
         "Jane Doe (D) 47%\nJohn Roe (R) 48%\n\nWe are dangerously close to winning FL's senate race. Chip in even \$1 https://xx4fl.com/l/xxxx\n\nJane\nEnd2End",

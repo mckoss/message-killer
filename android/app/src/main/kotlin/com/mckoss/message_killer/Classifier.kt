@@ -276,11 +276,11 @@ class Classifier(
             Rule("Party / partisan terms", 1.0,
                 phrase("""democrats?|dems|democratic\s+(party|strategy|candidates?|majority|nominee|leaders?|values)|republicans?|gop|maga|liberals?|conservatives?|progressives?|(keep|turn|flip)\s+\w+(\s+\w+)?\s+(blue|red)|(blue|red)\s+wave"""), P),
             Rule("Election terms", 1.0,
-                phrase("""elections?|election\s+(on|day\s+is)\s+(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}|votes?|voting|voters?|midterms?|campaign|(house|senate)\s+(control|majority)|control\s+(of\s+)?the\s+(house|senate|congress)"""), P),
+                phrase("""elections?|running\s+(for|against)\s+|(my|our)\s+(campaign|race|opponent)|election\s+(on|day\s+is)\s+(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}|votes?|voting|voters?|midterms?|campaign|(house|senate)\s+(control|majority)|control\s+(of\s+)?the\s+(house|senate|congress)"""), P),
             Rule("Voting logistics / get-out-the-vote", 1.0,
                 phrase("""ballots?|(in|leading|trailing)\s+the\s+polls|down[-\s]ballot|(close|tight|key|unsexy|competitive)\s+races?|flip\s+(the|a|this)\s+(house|senate|seat|district)|flip\s+(texas|florida|georgia|arizona|nevada|north\s+carolina|pennsylvania|michigan|wisconsin|ohio|iowa|maine|alaska|montana|kansas|nebraska|virginia|new\s+hampshire|minnesota|colorado|new\s+mexico|california|new\s+york|mississippi|south\s+carolina|missouri|indiana)|polling\s+(place|location)s?|early\s+voting|election\s+day|primary\s+election|swing\s+states?|get\s+out\s+the\s+vote|register(ed)?\s+to\s+vote"""), P),
             Rule("Political office / figure", 1.0,
-                phrase("""congress(wo)?man|congress|presidential|senate|senator|governor|speaker\s+(of\s+the\s+house)?|white\s+house|president\s+\w+|trump|biden|harris|vance|obama|pelosi|schumer|mcconnell|jeffries|aoc|desantis|newsom|pritzker|klobuchar|sherrod\s+brown|warren|sanders|kennedy|rfk|fauci|commissioner|attorney\s+general|secretary\s+of\s+(state|the\s+\w+)|mayor|state\s+(rep|representative|senator)|candidate"""), P),
+                phrase("""congress(wo)?man|congress|presidential|senate|senator|governor|speaker(\s+of\s+the\s+house)?|white\s+house|president\s+\w+|trump|biden|harris|vance|obama|pelosi|schumer|mcconnell|jeffries|aoc|desantis|newsom|pritzker|klobuchar|sherrod\s+brown|warren|sanders|kennedy|rfk|fauci|commissioner|attorney\s+general|secretary\s+of\s+(state|the\s+\w+)|mayor|state\s+(rep|representative|senator)|candidate"""), P),
             // Campaign sites: "abdulforsenate.co", "smith4congress.com".
             Rule("Campaign website", 1.5,
                 Regex("""\b[\w-]*(for|4)(senate|congress|governor|president|mayor|council|sheriff|judge|assembly|statehouse)\.(com|org|co|us|net)\b""", RegexOption.IGNORE_CASE), P),
@@ -301,7 +301,7 @@ class Classifier(
                 phrase("""last[-\s]ditch|fall(ing)?\s+short|budget\s+cuts?|(give|donate|chip\s+in|pitch\s+in)\s+(in|within)\s+the\s+next\s+(hour|\d+\s+(hours|minutes))|final\s+ad\s+buy|ad\s+buy|missed\s+our\s+goal|(hit|meet|reach)\s+our\s+(goal|target)\s+(tonight|by\s+midnight)"""), P),
             // Issue-advocacy asks: "help to defend Social Security", "sign the petition".
             Rule("Advocacy ask", 1.5,
-                phrase("""(help|join)\s+(us|me)?\s*(to\s+)?(defend|protect|fight\s+for|save|stop)|stand\s+with\s+(us|me)|sign\s+(the|our|this|my)\s+(petition|pledge)|add\s+(your|their)\s+names?|tell\s+congress|(personally\s+)?endorse\s+(his|her|their|my|our|the)\s+(campaign|candidacy|run)|looking\s+for\s+[\d,]+\s+(people|supporters|signatures|voters)|(is|are)\s+(humbly\s+|respectfully\s+|personally\s+)*asking\s+(if|whether)\s+you"""), P),
+                phrase("""(help|join)\s+(us|me)?\s*(to\s+)?(defend|protect|fight\s+for|save|stop)|stand\s+with\s+(us|me)|sign\s+(the|our|this|my)\s+(petition|pledge)|add\s+(your|their)\s+names?|tell\s+congress|(help|join)\s+(us|me)\s+(put\s+up|run|air|fund|launch)\s+(billboards?|ads?|an\s+ad|tv\s+ads?|mailers?|a\s+campaign)|(personally\s+)?endorse\s+(his|her|their|my|our|the)\s+(campaign|candidacy|run)|looking\s+for\s+[\d,]+\s+(people|supporters|signatures|voters)|(is|are)\s+(humbly\s+|respectfully\s+|personally\s+)*asking\s+(if|whether)\s+you"""), P),
             Rule("Political issue", 1.0,
                 phrase("""social\s+security|medicare|medicaid|abortion|reproductive\s+(rights|freedom)|gun\s+(safety|control|rights)|second\s+amendment|supreme\s+court|scotus|impeach\w*|filibuster|democracy"""), P),
             // Signed by a person at the end of the first line: "My last-ditch request. - James Talarico"
@@ -334,6 +334,9 @@ class Classifier(
             // Committee acronym signed just before the opt-out footer: "HDV\nStop2End", "-STFU PAC Text STOP".
             Rule("Committee sign-off before opt-out", 1.0,
                 Regex("""(^|\n|\s{2,}|-)\s*\p{Lu}{2,6}(\s+PAC)?\s*\n?\s*(?i:$FOOTER)"""), P),
+            // A first name alone on the line before the footer: "…link\n\nConrad\nEnd2End".
+            Rule("Signed with a first name before opt-out", 1.0,
+                Regex("""\n\s*\p{Lu}\p{Ll}{1,14}\s*\n\s*(?i:$FOOTER)"""), P),
 
             // --------------------------------------------------------- commercial
             // "CVS ExtraCare: …", "birddogs: …"
