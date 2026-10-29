@@ -313,20 +313,15 @@ class _SwitchBackScreenState extends State<SwitchBackScreen>
     setState(() => _status = status);
   }
 
-  /// The system dialog wasn't available: show the manual route instead.
+  /// No messaging app could be opened: show the Default apps route instead.
   bool _manual = false;
 
+  /// Opens the messaging app (it offers "Set default SMS app"); we notice the
+  /// switch when the user comes back here.
   Future<void> _switchBack() async {
-    if (_manual) {
+    if (_manual || !await widget.api.openMessagingApp()) {
+      if (mounted) setState(() => _manual = true);
       await widget.api.openDefaultAppsSettings();
-      return;
-    }
-    final done = await widget.api.restoreDefaultSmsApp();
-    if (!mounted) return;
-    if (done) {
-      await _refresh();
-    } else {
-      setState(() => _manual = true);
     }
   }
 
@@ -413,9 +408,8 @@ class _SwitchBackScreenState extends State<SwitchBackScreen>
                 const SizedBox(height: 16),
                 Text(
                   _manual
-                      ? 'This phone doesn\'t offer the quick dialog. In Default apps, tap '
-                            '"SMS app" and choose $appName, then come back here.'
-                      : 'Tap below and confirm in the dialog.',
+                      ? 'In Default apps, tap "SMS app" and choose $appName, then come back here.'
+                      : '$appName will open. Tap "Set default SMS app" and confirm, then come back here.',
                 ),
                 const SizedBox(height: 24),
                 FilledButton.icon(

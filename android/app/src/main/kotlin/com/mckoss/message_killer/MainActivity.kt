@@ -23,7 +23,6 @@ class MainActivity : FlutterActivity() {
     private val worker = Executors.newCachedThreadPool()
     private val main = Handler(Looper.getMainLooper())
     private var pendingRoleResult: MethodChannel.Result? = null
-    private var pendingSwitchBackResult: MethodChannel.Result? = null
     private var pendingPermissionResult: MethodChannel.Result? = null
     private var launchAction: String? = null
 
@@ -67,7 +66,7 @@ class MainActivity : FlutterActivity() {
                 launch(Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)) || launch(Intent(Settings.ACTION_SETTINGS))
             )
             "requestDefaultSmsRole" -> requestDefaultSmsRole(result)
-            "restoreDefaultSmsApp" -> restoreDefaultSmsApp(result)
+            "openMessagingApp" -> result.success(openMessagingApp())
             "scanInbox" -> background(result) {
                 val scan = Cleanup.scan(this, forceFull = call.argument<Boolean>("full") == true)
                 val stats = Cleanup.lastStats
@@ -285,39 +284,22 @@ class MainActivity : FlutterActivity() {
     }
 
     /**
-     * Asks the system to make the user's messaging app the default again, with
-     * the same one-tap dialog used to make us the default: the legacy
-     * ACTION_CHANGE_DEFAULT intent still names another app (RoleManager can
-     * only request the role for the caller). Answers true once we are no
-     * longer the default; false means the dialog isn't available (or was
-     * declined) and the caller should fall back to the Default apps page.
+     * Opens the user's messaging app so it can ask for the SMS role back.
+     * Only the app that wants a role can show the one-tap system dialog
+     * (RoleManager), and Google Messages offers "Set default SMS app" when it
+     * isn't the default. (The legacy Telephony ACTION_CHANGE_DEFAULT intent
+     * that names another app is blocked for apps targeting Android 10+.)
+     * Returns false if no messaging app could be opened.
      */
-    private fun restoreDefaultSmsApp(result: MethodChannel.Result) {
-        if (!Cleanup.isDefaultSmsApp(this)) {
-            result.success(true)
-            return
+    private fun openMessagingApp(): Boolean {
+        val candidates = listOfNotNull(AppSettings(this).previousDefaultSmsPackage) +
+            MessageNotificationListener.KNOWN_MESSAGING_APPS
+        for (pkg in candidates.distinct()) {
+            if (pkg == packageName || !isInstalled(pkg)) continue
+            val intent = packageManager.getLaunchIntentForPackage(pkg) ?: continue
+            if (launch(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))) return true
         }
-        val target = AppSettings(this).previousDefaultSmsPackage?.takeIf { isInstalled(it) }
-            ?: MessageNotificationListener.KNOWN_MESSAGING_APPS.firstOrNull { isInstalled(it) }
-        if (target == null) {
-            result.success(false)
-            return
-        }
-        val intent = Intent(Telephony.Sms.Intents.ACTION_CHANGE_DEFAULT)
-            .putExtra(Telephony.Sms.Intents.EXTRA_PACKAGE_NAME, target)
-        if (intent.resolveActivity(packageManager) == null) {
-            result.success(false)
-            return
-        }
-        pendingSwitchBackResult?.success(false)
-        pendingSwitchBackResult = result
-        try {
-            @Suppress("DEPRECATION")
-            startActivityForResult(intent, REQUEST_SWITCH_BACK)
-        } catch (e: Exception) {
-            pendingSwitchBackResult = null
-            result.success(false)
-        }
+        return false
     }
 
     private fun isInstalled(pkg: String) = try {
@@ -331,15 +313,9 @@ class MainActivity : FlutterActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
-        when (requestCode) {
-            REQUEST_SMS_ROLE -> {
-                pendingRoleResult?.success(resultCode == RESULT_OK || Cleanup.isDefaultSmsApp(this))
-                pendingRoleResult = null
-            }
-            REQUEST_SWITCH_BACK -> {
-                pendingSwitchBackResult?.success(!Cleanup.isDefaultSmsApp(this))
-                pendingSwitchBackResult = null
-            }
+        if (requestCode == REQUEST_SMS_ROLE) {
+            pendingRoleResult?.success(resultCode == RESULT_OK || Cleanup.isDefaultSmsApp(this))
+            pendingRoleResult = null
         }
     }
 
@@ -365,6 +341,5 @@ class MainActivity : FlutterActivity() {
         private const val CHANNEL = "message_killer/native"
         private const val REQUEST_SMS_ROLE = 7001
         private const val REQUEST_PERMISSIONS = 7002
-        private const val REQUEST_SWITCH_BACK = 7003
     }
 }

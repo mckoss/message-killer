@@ -80,14 +80,13 @@ class FakeNativeApi implements NativeApi {
   @override
   Future<void> openAppSettings() async => calls.add('openAppSettings');
 
-  /// Whether the system's one-tap "switch back" dialog works on this phone.
-  bool switchBackWorks = true;
+  /// Whether a messaging app is installed to open for switching back.
+  bool messagingAppInstalled = true;
 
   @override
-  Future<bool> restoreDefaultSmsApp() async {
-    calls.add('restoreDefaultSmsApp');
-    if (switchBackWorks) isDefaultSmsApp = false;
-    return switchBackWorks;
+  Future<bool> openMessagingApp() async {
+    calls.add('openMessagingApp');
+    return messagingAppInstalled;
   }
 
   @override

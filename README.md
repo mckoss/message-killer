@@ -85,9 +85,9 @@ RCS chat keeps working.
    1. Message Killer files the political texts in your inbox.
    2. It asks to become the default SMS app for a moment.
    3. It deletes those texts.
-   4. It asks, with the same one-tap system dialog, to make Google Messages
-      the default again (falling back to *Default apps* on phones that
-      don't offer the dialog).
+   4. It opens Google Messages, which offers **Set default SMS app** (the same
+      one-tap system dialog) to take the role back. Android only lets an app
+      request the SMS role for itself; *Default apps* is the fallback.
 
    RCS chats can be silenced but not deleted, because Android doesn't give
    other apps access to them.
@@ -175,8 +175,8 @@ installing apps from that source.
 2. **Turn on the live filter:** tap *Open*, choose Message Killer, and allow
    notification access. This step may also need "Allow restricted settings".
 3. Tap **Scan now**, review the list, then tap **Delete**. When asked, choose Message Killer
-   as the default SMS app. Then tap **Switch back** and confirm, to make
-   Google Messages the default again.
+   as the default SMS app. Then tap **Switch back**: Google Messages opens;
+   tap **Set default SMS app** and confirm.
 4. Optional: turn on **Daily cleanup reminder**.
 5. Use **Filter settings** (top right) to add keywords, allow senders, or paste
    a text to see whether it would be filtered.
