@@ -80,14 +80,46 @@ void main() {
     expect(find.text('Switch back to Messages'), findsOneWidget);
 
     await tester.tap(find.text('Switch back to Messages'));
-    expect(api.calls, contains('openDefaultAppsSettings'));
-    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await pumpABit(tester);
+    expect(api.calls, contains('restoreDefaultSmsApp'));
+    expect(api.calls, isNot(contains('openDefaultAppsSettings')));
     expect(
       find.text('All set: Messages is your default messaging app again.'),
       findsOneWidget,
     );
   });
+
+  testWidgets(
+    'switch back falls back to Default apps when the dialog is unavailable',
+    (tester) async {
+      final api = FakeNativeApi(pending: 1)..switchBackWorks = false;
+      await tester.pumpWidget(MessageKillerApp(api: api));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Scan now'));
+      await pumpABit(tester);
+      await tester.tap(find.widgetWithText(FilledButton, 'Delete 1'));
+      await pumpABit(tester);
+
+      await tester.tap(find.text('Switch back to Messages'));
+      await pumpABit(tester);
+      expect(
+        find.textContaining('doesn\'t offer the quick dialog'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Open Default apps'));
+      await pumpABit(tester);
+      expect(api.calls, contains('openDefaultAppsSettings'));
+
+      // Switched manually, then came back.
+      api.isDefaultSmsApp = false;
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await pumpABit(tester);
+      expect(
+        find.text('All set: Messages is your default messaging app again.'),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('cleanup does nothing if SMS role is refused and user cancels', (
     tester,

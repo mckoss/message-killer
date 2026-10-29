@@ -461,6 +461,11 @@ abstract class NativeApi {
   Future<void> openDefaultAppsSettings();
   Future<bool> requestDefaultSmsRole();
 
+  /// Asks the system (one-tap dialog) to make your messaging app the default
+  /// again. True once Message Killer is no longer the default; false if the
+  /// dialog isn't available or was declined (open Default apps instead).
+  Future<bool> restoreDefaultSmsApp();
+
   /// [full]: re-check every message, not just ones since the last scan.
   Future<ScanResult> scanInbox({bool full = false});
 
@@ -561,6 +566,10 @@ class MethodChannelNativeApi implements NativeApi {
   @override
   Future<bool> requestDefaultSmsRole() async =>
       await _channel.invokeMethod<bool>('requestDefaultSmsRole') ?? false;
+
+  @override
+  Future<bool> restoreDefaultSmsApp() async =>
+      await _channel.invokeMethod<bool>('restoreDefaultSmsApp') ?? false;
 
   @override
   Future<ScanResult> scanInbox({bool full = false}) async {
