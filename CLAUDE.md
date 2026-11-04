@@ -40,10 +40,35 @@ are native so they run without the Flutter UI. See `plan.md` for the design.
 - Long operations update `Cleanup.progress` often (small batches), and
   Flutter lists of messages use lazy builders.
 
+## Branches
+
+- Work on `main` and push to `main` (the owner's request); don't create
+  session branches. CI publishes from `main`.
+
 ## Checks before pushing
+
+Only push when every check passes (stop on the first failure).
 
 ```bash
 flutter analyze && flutter test
 flutter build apk --release
 (cd android && ./gradlew :app:testDebugUnitTest)
 ```
+
+In cloud sessions the environment's setup script installs Flutter to
+`/opt/flutter` and the Android SDK to `/opt/android-sdk` (not on PATH: use
+`/opt/flutter/bin/flutter`). If they're missing, the classifier can still be
+compiled and its tests run with Gradle's bundled Kotlin compiler and JUnit:
+
+```bash
+L=/opt/gradle-8.14.3/lib
+java -cp "$L/*" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler -no-stdlib -no-reflect \
+  -classpath $L/kotlin-stdlib-2.0.21.jar:$L/junit-4.13.2.jar -d /tmp/t.jar \
+  android/app/src/main/kotlin/com/mckoss/message_killer/Classifier.kt \
+  android/app/src/test/kotlin/com/mckoss/message_killer/ClassifierTest.kt
+java -cp /tmp/t.jar:$L/kotlin-stdlib-2.0.21.jar:$L/junit-4.13.2.jar:$L/hamcrest-core-1.3.jar \
+  org.junit.runner.JUnitCore com.mckoss.message_killer.ClassifierTest
+```
+
+For rule changes, also compare old vs new rules on the owner's latest
+Spam folder export (ask for a fresh upload; never commit it).
