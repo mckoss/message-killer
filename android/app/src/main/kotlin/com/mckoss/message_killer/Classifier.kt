@@ -278,12 +278,16 @@ class Classifier(
             Rule("Election terms", 1.0,
                 phrase("""elections?|running\s+(for|against)\s+|(my|our)\s+(campaign|race|opponent)|election\s+(on|day\s+is)\s+(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}|votes?|voting|voters?|midterms?|campaign|(house|senate)\s+(control|majority)|control\s+(of\s+)?the\s+(house|senate|congress)"""), P),
             Rule("Voting logistics / get-out-the-vote", 1.0,
-                phrase("""ballots?|(in|leading|trailing)\s+the\s+polls|down[-\s]ballot|(close|tight|key|unsexy|competitive)\s+races?|flip\s+(the|a|this)\s+(house|senate|seat|district)|flip\s+(texas|florida|georgia|arizona|nevada|north\s+carolina|pennsylvania|michigan|wisconsin|ohio|iowa|maine|alaska|montana|kansas|nebraska|virginia|new\s+hampshire|minnesota|colorado|new\s+mexico|california|new\s+york|mississippi|south\s+carolina|missouri|indiana)|polling\s+(place|location)s?|early\s+voting|election\s+day|primary\s+election|swing\s+states?|get\s+out\s+the\s+vote|register(ed)?\s+to\s+vote"""), P),
+                phrase("""ballots?|(in|leading|trailing)\s+the\s+polls|down[-\s]ballot|(close|tight|key|unsexy|competitive)\s+races?|flip\s+(the|a|this)\s+(house|senate|seat|district)|flip\s+(texas|florida|georgia|arizona|nevada|north\s+carolina|pennsylvania|michigan|wisconsin|ohio|iowa|maine|alaska|montana|kansas|nebraska|virginia|new\s+hampshire|minnesota|colorado|new\s+mexico|california|new\s+york|mississippi|south\s+carolina|missouri|indiana)|polling\s+(place|location)s?|return\s+your\s+ballot|ballots?\s+(are\s+)?due|drop\s+box|early\s+voting|election\s+day|primary\s+election|swing\s+states?|get\s+out\s+the\s+vote|register(ed)?\s+to\s+vote"""), P),
             Rule("Political office / figure", 1.0,
-                phrase("""congress(wo)?man|congress|presidential|senate|senator|governor|speaker(\s+of\s+the\s+house)?|white\s+house|president\s+\w+|trump|biden|harris|vance|obama|pelosi|schumer|mcconnell|jeffries|aoc|desantis|newsom|pritzker|klobuchar|sherrod\s+brown|warren|sanders|kennedy|rfk|fauci|commissioner|attorney\s+general|secretary\s+of\s+(state|the\s+\w+)|mayor|state\s+(rep|representative|senator)|candidate"""), P),
+                phrase("""congress(wo)?man|congress|presidential|senate|senator|governor|speaker(\s+of\s+the\s+house)?|white\s+house|president\s+\w+|trump|biden|harris|vance|obama|pelosi|schumer|mcconnell|jeffries|aoc|desantis|newsom|pritzker|klobuchar|sherrod\s+brown|warren|sanders|kennedy|rfk|fauci|commissioner|attorney\s+general|secretary\s+of\s+(state|the\s+\w+)|mayor|state\s+(rep|representative|senator|legislature|house)|legislat(ure|or|ive)|city\s+(hall|council)|county\s+(council|commission\w*)|school\s+board|candidate"""), P),
             // Campaign sites: "abdulforsenate.co", "smith4congress.com".
             Rule("Campaign website", 1.5,
                 Regex("""\b[\w-]*(for|4)(senate|congress|governor|president|mayor|council|sheriff|judge|assembly|statehouse)\.(com|org|co|us|net)\b""", RegexOption.IGNORE_CASE), P),
+            // "Return your ballot and vote Amy Walen by Nov 3", "vote for Jane Doe".
+            // Moderate on its own: "did you vote for Sarah as captain?" stays clean.
+            Rule("Asks you to vote for a named person", 1.5,
+                Regex("""\b(?i:vote|re-?elect|elect)\s+(?i:for\s+)?\p{Lu}[\p{L}'’-]+(\s+\p{Lu}[\p{L}'’-]+)?\b(?!\s+(?i:as)\b)"""), P),
             // "Team Abdul El-Sayed: …"
             Rule("Campaign team prefix", 1.0, Regex("""^\s*Team\s+\p{Lu}[\p{L}'’-]+(\s+\p{Lu}[\p{L}'’-]+)?\s*:"""), P),
             // "We're looking for folks in King County to help their local Dems."
